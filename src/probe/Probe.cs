@@ -19,13 +19,16 @@ namespace Monitorn.Probe
             bool write = false;
             bool force = false;
             int delta = 20;
+            int set = -1;
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "--write") write = true;
                 else if (args[i] == "--force") force = true;
                 else if (args[i] == "--delta" && i + 1 < args.Length) delta = int.Parse(args[++i]);
+                else if (args[i] == "--set" && i + 1 < args.Length) set = int.Parse(args[++i]);
             }
             Ddc.Force = force;
+            Ddc.Set = set;
 
             Console.WriteLine("Monitorn EXP02 probe  clr=" + Environment.Version + "  64bit=" + (IntPtr.Size == 8));
             Console.WriteLine();
@@ -79,6 +82,7 @@ namespace Monitorn.Probe
     internal static class Ddc
     {
         public static bool Force;
+        public static int Set = -1;
         [StructLayout(LayoutKind.Sequential)] private struct RECT { public int Left, Top, Right, Bottom; }
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct MONITORINFOEX
@@ -149,6 +153,18 @@ namespace Monitorn.Probe
                         {
                             if (!ok) { Console.WriteLine("      WRITE SKIPPED (no readable brightness)"); continue; }
                             if (ph.h == IntPtr.Zero && !Force) { Console.WriteLine("      WRITE SKIPPED (null handle; pass --force to test anyway)"); continue; }
+
+                            if (Set >= 0)
+                            {
+                                long sv = Set; if (sv < bmin) sv = bmin; if (sv > bmax) sv = bmax;
+                                Console.WriteLine("      SET " + bcur + " -> " + sv + (sv == Set ? "" : " (clamped)"));
+                                bool sw = SetMonitorBrightness(ph.h, (uint)sv);
+                                System.Threading.Thread.Sleep(700);
+                                uint smin, scur, smax; bool sok = GetMonitorBrightness(ph.h, out smin, out scur, out smax);
+                                Console.WriteLine("      set ok=" + sw + " readback=" + (sok ? scur.ToString() : "fail"));
+                                continue;
+                            }
+
                             long target = (long)bcur - delta; if (target < bmin) target = bmin; if (target > bmax) target = bmax;
                             Console.WriteLine("      WRITE " + bcur + " -> " + target);
                             bool w = SetMonitorBrightness(ph.h, (uint)target); int werr = Marshal.GetLastWin32Error();

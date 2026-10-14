@@ -1,11 +1,13 @@
-// EXP03 - Monitorn per-monitor control surface (UI only).
+// EXP03/EXP04 - Monitorn per-monitor control surface (UI only).
 //
 // The control surface of the tray app: one row per monitor, each with the monitor's
 // name, a 0-100 brightness slider and a gear button. This is a UI spike only:
 //   * monitor rows are HARDCODED samples - nothing is detected,
 //   * the sliders change their own value label and nothing else,
-//   * the gear buttons are enabled but inert (no panel behind them),
 //   * no DDC/CI, no WMI, no brightness write of any kind.
+//
+// EXP04 wires the gear to the dummy "Schedule night light" settings window (SettingsWindow.cs)
+// and adds --settings, which opens that window on its own so it can be verified directly.
 //
 // Built code-only (no XAML) so the in-box csc.exe alone can produce it - no SDK, no VS.
 // Target: .NET Framework 4.8, WPF.
@@ -53,17 +55,17 @@ namespace Monitorn.App
         private static readonly Brush GearFill = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
         private static readonly Brush GearEdge = new SolidColorBrush(Color.FromRgb(0xD8, 0xD8, 0xD8));
 
-        public static Window Build(IList<MonitorRow> rows, double width)
+        public static Window Build(IList<MonitorRow> rows, double width, Action onSettings)
         {
             var root = new StackPanel { Margin = new Thickness(18, 16, 18, 16) };
 
             root.Children.Add(Label("Monitorn", 16, Ink, FontWeights.SemiBold, new Thickness(0, 0, 0, 2)));
             root.Children.Add(Label("Brightness per display", 12, Muted, FontWeights.Normal, new Thickness(0, 0, 0, 14)));
 
-            foreach (MonitorRow row in rows) root.Children.Add(Row(row));
+            foreach (MonitorRow row in rows) root.Children.Add(Row(row, onSettings));
 
             root.Children.Add(Label(
-                "UI spike - the sliders change their own label only, nothing is written to a monitor.",
+                "UI spike - sliders change their own label, the gear opens dummy settings, nothing is written to a monitor.",
                 11, Muted, FontWeights.Normal, new Thickness(0, 4, 0, 0)));
 
             return new Window
@@ -94,7 +96,7 @@ namespace Monitorn.App
         }
 
         /// <summary>One monitor: name + live value above a slider, gear button at the right.</summary>
-        private static Border Row(MonitorRow row)
+        private static Border Row(MonitorRow row, Action onSettings)
         {
             var value = new TextBlock
             {
@@ -159,9 +161,13 @@ namespace Monitorn.App
                 Cursor = Cursors.Hand,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(12, 0, 0, 0),
-                ToolTip = "Settings for " + row.DisplayName + " (not wired up in this experiment)",
-                // Deliberately inert: EXP03 proves the surface, not the settings behind it.
+                ToolTip = "Settings for " + row.DisplayName,
+                // EXP04: the gear now opens the (dummy) night-light schedule settings window.
             };
+            gear.Click += delegate { onSettings(); };
+            // An icon-only button has no readable name; give it one (accessibility), which is also
+            // what the verifier finds it by - a WPF Slider puts its own Buttons in the UIA tree.
+            System.Windows.Automation.AutomationProperties.SetName(gear, "Settings for " + row.DisplayName);
 
             var grid = new Grid();
             grid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -191,10 +197,12 @@ namespace Monitorn.App
         {
             int count = 3;      // --rows N: how many sample monitors to lay out
             double width = 400; // --width N: window width in DIPs
+            bool settingsOnly = false; // --settings: open the night-light settings window by itself
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "--rows" && i + 1 < args.Length) count = int.Parse(args[++i], CultureInfo.InvariantCulture);
                 else if (args[i] == "--width" && i + 1 < args.Length) width = double.Parse(args[++i], CultureInfo.InvariantCulture);
+                else if (args[i] == "--settings") settingsOnly = true;
             }
             if (count < 1) count = 1;
 
@@ -211,7 +219,15 @@ namespace Monitorn.App
             for (int i = 0; i < count; i++) rows.Add(known[i % known.Count]);
 
             var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
-            app.Run(Surface.Build(rows, width));
+
+            if (settingsOnly)
+            {
+                app.Run(SettingsSurface.Build(new ScheduleSettings()));
+                return;
+            }
+
+            var host = new SettingsHost();
+            app.Run(Surface.Build(rows, width, delegate { host.Show(); }));
         }
     }
 }

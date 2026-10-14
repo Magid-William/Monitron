@@ -1,8 +1,11 @@
 # Builds the Monitorn control surface with the in-box .NET Framework 4.8 compiler
-# (no SDK, no Visual Studio, no download). EXP03.
+# (no SDK, no Visual Studio, no download). EXP03, extended by EXP04.
 #
 # The UI is written code-only (no XAML), so no markup/BAML step is needed and csc alone
 # can produce the executable; WPF comes from the in-box runtime assemblies.
+#
+# Sources are listed one by one on purpose: ScheduleSettingsTests.cs has its own Main and
+# belongs to model-test.ps1, not to this winexe.
 $ErrorActionPreference = 'Stop'
 
 $net = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319'
@@ -22,7 +25,9 @@ $out = Join-Path $here 'Monitorn.App.exe'
 $args = @('/nologo', '/target:winexe', '/platform:x64', "/out:$out",
     "/win32manifest:$(Join-Path $here 'app.manifest')") +
     ($refs | ForEach-Object { "/reference:$_" }) +
-    @(Join-Path $here 'Program.cs')
+    @((Join-Path $here 'Program.cs'),
+      (Join-Path $here 'ScheduleSettings.cs'),
+      (Join-Path $here 'SettingsWindow.cs'))
 
 & $csc @args
 if ($LASTEXITCODE -ne 0) { throw "csc failed with exit $LASTEXITCODE" }

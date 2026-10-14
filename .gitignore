@@ -17,3 +17,6 @@ desktop.ini
 
 # EXP02 throwaway probe build output
 src/probe/*.exe
+
+# EXP03 control surface build output
+src/Monitorn.App/*.exe

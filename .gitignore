@@ -14,3 +14,6 @@ TestResults/
 # OS
 Thumbs.db
 desktop.ini
+
+# EXP02 throwaway probe build output
+src/probe/*.exe

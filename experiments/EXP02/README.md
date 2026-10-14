@@ -64,24 +64,38 @@ absent (a known hardware limitation).
   `QueryDisplayConfig` target id / PnP device path.
 
 ## Conclusion (findings)
-_Pending (user-declared)._
+**Success (user-declared, 2026-10-15).** The hypothesis holds: Monitorn enumerates every
+connected display and reads/writes its brightness, reversibly and with read-back verification —
+external over DDC/CI (`dxva2.dll`, VCP `0x10`), internal over WMI. On this machine the external
+AOC `Q27G3G3R3` read 47 and was driven 47 → 27 → 47 (later set persistently to 50, then 30);
+the internal `BOE0764` panel round-tripped 62 → 42 → 62.
+
+What this settles:
+- **Mechanism proven on real hardware** for both monitor kinds — the actuator seam
+  (`IBrightnessController`) has a working implementation.
+- **No heavyweight dependency:** in-box .NET Framework 4.8 + Windows DLLs/WMI only — no SDK,
+  Visual Studio, Windows SDK, PowerToys, Monitorian, or other third-party tool.
+- **Identity must come from `QueryDisplayConfig` / PnP device path, not the physical handle**
+  (NULL on this Intel setup).
+- **The untrusted-read guard matters:** a NULL handle can still return a plausible value, so
+  writes stay gated on a corroborated read.
+- **Off-limits VCPs stay untouched:** `0x60` (input) and `0xD6` (power) were never written, and
+  the capabilities-string API was never called.
+
+Next: the scheduler (FSM, injected clock, fake controller), then the product-stack decision
+(leaning .NET Framework 4.8 WPF for a 0 MB build, given the metered-internet constraint).
 
 ## Learnings
-- `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /target:exe /platform:x64 /out:<exe> <cs>`
-  — compile a .NET Framework 4.8 console app with **no SDK, no Visual Studio, no Windows SDK**
-  (0 MB). Use when a metered / SDK-less machine must build C#.
-- `src\probe\build.ps1` then `src\probe\probe.exe [--write [--force] --delta N]` — the EXP02
-  DDC/topology probe (read-only by default; `--force` writes through a NULL handle).
-- `QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS = 2)` — authoritative **active** display + identity
-  (target id, `outputTechnology`). Prefer it over `EnumDisplayMonitors`, which collapses to
-  rendering targets and hides the internal panel.
-- dxva2 on Intel UHD 620: `GetPhysicalMonitorsFromHMONITOR` yields a **NULL handle** but
-  `Get/SetMonitorBrightness` still work. Pass the handle anyway; never key identity off it.
-- External = DDC/CI via dxva2 (VCP `0x10` brightness, `0x12` contrast); internal = WMI
-  `root\wmi WmiMonitorBrightness(Methods).WmiSetBrightness` (0–100).
-- Ground truth for a monitor's DDC capabilities without calling the caps-string API:
-  `%LOCALAPPDATA%\Microsoft\PowerToys\PowerDisplay\settings.json` (`currentBrightness`,
-  `capabilitiesRaw`).
-- Machine inventory: .NET 8 SDK **absent**; in-box .NET Framework 4.8 (`csc`/`MSBuild` + WPF
-  assemblies) and **Rust 1.99** (gnu + gnullvm toolchains, **no MSVC linker**) are present.
+- Build C# with the in-box `csc` (no SDK/VS/Windows SDK, 0 MB):
+  `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /target:exe /platform:x64 /out:<exe> <cs>`.
+- Probe: `src\probe\build.ps1` then `src\probe\probe.exe [--write [--force]] [--set N | --delta N]`.
+- Active monitor + identity: `QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS = 2)` (target id,
+  `outputTechnology`); `EnumDisplayMonitors` alone hides the non-rendering internal panel.
+- Control: external = `dxva2` VCP `0x10` brightness / `0x12` contrast; internal = WMI
+  `root\wmi WmiMonitorBrightnessMethods.WmiSetBrightness` (0–100).
+- Intel UHD 620 returns a **NULL** physical-monitor handle yet dxva2 still works: key identity
+  off the target id, never the handle; never treat NULL as failure.
+- A monitor's real DDC capabilities (read-only) are in
+  `%LOCALAPPDATA%\Microsoft\PowerToys\PowerDisplay\settings.json` (`capabilitiesRaw`) — avoids
+  the capabilities-string BSOD path.
 

@@ -38,6 +38,7 @@ goal are a candidate for
 - Branch per experiment, named after the EXP number (`EXP0N`).
 - Experiment **code lands at the repo root** (`src/`, `Monitorn.sln`, ...) — that is the app. `experiments/EXP0N/` holds only the README: the record, not the implementation.
 - Machine logic is tested by driving it: construct the state machine with an injected clock (`Func<DateTimeOffset> now`), then advance it by invoking its transitions and assert on the exposed state. Never wait on a fixed tick, `Thread.Sleep`, or a real timer. *(This app is FSM-first: the scheduler is a state machine, so every experiment tests a machine.)*
+- A UI claim is verified by driving the window, not by describing it: find the controls with UI Automation and drive them through their own patterns (`TogglePattern`, `SelectionItemPattern`, `InvokePattern`, `ValuePattern`), then assert the state they report. Never `SendKeys` for this — keystrokes need the OS foreground, and a click elsewhere on the desktop turns a run into bogus failures. *(Promoted from EXP04, approved: it is what turns a screenshot into an assertion.)*
 - Plan mode is read-only: no branch, README or overview edits until the plan is approved.
 - The overview is updated at every transition: plan-ready -> in progress -> final status.
 

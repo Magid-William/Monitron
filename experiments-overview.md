@@ -42,4 +42,6 @@ looking: committing text on `LostFocus` made the fields undrivable, and a window
 applied, no monitor touched; the sunset range is a placeholder. Note this makes EXP03's "the gear is
 inert" obsolete. Recommend **EXP05 = scheduler FSM** (injected clock + fake `IBrightnessController`),
 which this window now supplies the settings shape for — then real detection into the EXP03 rows, the
-tray shell, and persistence.
+tray shell, and persistence. One learning from it was **promoted into `AGENTS.md`** (the one
+promotion allowed, approved by the user): UI claims are verified by driving the window through UI
+Automation patterns and asserting the state it reports, never by `SendKeys`.

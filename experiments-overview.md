@@ -178,6 +178,8 @@ loop variable clobbered the process object and left a night running on the deskt
 non-overridden display is mid-ramp at turn-off so its restore needs a poll. Boundaries: the panel's
 staircase is not sampled (a WMI read is slower than a fade step), a row is a count-matched witness
 rather than an identified one (the probe names a device, not a row), and `verify.ps1`'s stale
-`--rows` help line is left alone. Recommend **EXP11 = the tray shell + autostart** - the standing
+`--rows` help line is left alone. One learning from it was **promoted into `AGENTS.md`** (the one
+promotion allowed, approved by the user, so that budget is spent): *verify once, when the experiment
+is done - not after every edit*. Recommend **EXP11 = the tray shell + autostart** - the standing
 step, now with its regressions back and the flyout corner EXP09 proved - then the stored `theme=`
 preference, real sunset/sunrise, per-monitor profiles.

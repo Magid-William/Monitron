@@ -181,6 +181,10 @@ What this settles:
   not show: a reused `$p` loop variable clobbered the process object (the app was never asked to
   close, and a scripted night was left running on the desktop), and a non-overridden display is
   mid-ramp at turn-off, so its restore needs a poll.
+- **One learning from it was promoted into `AGENTS.md`, approved by the user** (the one promotion the
+  workflow allows, so that budget is now spent): *verify once, when the experiment is done - not after
+  every edit* - work the experiment to completion, then run the whole verification, fix and rerun as
+  often as needed to go green.
 
 What it deliberately does not settle - the boundary:
 - **The panel's staircase is not sampled.** A WMI read is slower than a fade step (0.33 s real at

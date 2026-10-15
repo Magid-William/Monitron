@@ -14,7 +14,7 @@ only the user declares the final status.
 | EXP07 | Persist the schedule settings (a file behind the window) | success | EXP07 | 2026-10-15 | 2026-10-15 | [experiments/EXP07/README.md](experiments/EXP07/README.md) |
 | EXP08 | Dark mode: the app's windows follow the Windows app theme | success | EXP08 | 2026-10-15 | 2026-10-15 | [experiments/EXP08/README.md](experiments/EXP08/README.md) |
 | EXP09 | Screen position: the surface as a bottom-right flyout, near the clock | success | EXP09 | 2026-10-15 | 2026-10-15 | [experiments/EXP09/README.md](experiments/EXP09/README.md) |
-| EXP10 | Raise the brightness regressions to N displays | inProg | EXP10 | 2026-10-15 | - | [experiments/EXP10/README.md](experiments/EXP10/README.md) |
+| EXP10 | Raise the brightness regressions to N displays | success | EXP10 | 2026-10-15 | 2026-10-15 | [experiments/EXP10/README.md](experiments/EXP10/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -158,21 +158,26 @@ end-to-end regression. Recommend **EXP10 = relax those two verifiers to N displa
 standing **tray shell + autostart** - the corner this experiment proved is the geometry that shell
 opens into - then the stored `theme=` preference, real sunset/sunrise, per-monitor profiles.
 
-**EXP10:** `inProg`. The experiment EXP09 named first: the two single-row verifiers, relaxed to N
-displays, because this machine now reports **two** active targets (an internal panel beside the AOC)
-and both asserted exactly one row - which left the brightness path and the scripted night with no
-working end-to-end regression. `Program.cs` gains one seam (each row's slider and gear carry
-`monitor.Id` - `DDC:<device path>` / `WMI:<InstanceName>` - as their UI Automation id, so a row is
-bound to a display instead of guessed at), and each verifier drives **every** row against its **own**
-outside witness: the read-only EXP02 probe for the DDC row, an independent `Get-CimInstance` WMI read
-for the panel row, whose row shows `Display 1` and whose EDID is `BOE0764`. **Run 2026-10-15:**
-`verify-control` 28 checks (22 with `-SkipInternal`) and `verify-schedule` 35, 0 failed, with the
-regressions green (38 / 19 / 114 / 42 / 34 / 63 headless; 30 / 27 / 42 / 60 end to end). The panel was
-driven 67 -> 57 -> 67 and the AOC 57 -> 47 -> 57; a scripted night at strength 47 faded both (the AOC
-staircase 57 -> 56 -> 54 -> 52 -> 48 -> 47), held both, honoured a manual move on the AOC **while the
-panel stayed held** (per-display override, new), ramped the panel back to 67 and left the AOC its 57.
-The **WMI path is exercised for the first time** (EXP05's boundary), and two defects were found only
-by driving - a reused `$p` loop variable clobbered the process object and left a night running on the
-desktop, and a non-overridden display is mid-ramp at turn-off so its restore needs a poll. Recommend
-**EXP11 = the tray shell + autostart** (the standing step, now with its regressions back and its
-flyout corner proved). Status is the agent's **recommendation, pending the user's declaration**.
+**EXP10:** `success` (the agent's recommendation, pending the user's declaration). The experiment
+EXP09 named first: the two single-row verifiers, relaxed to N displays, because this machine now
+reports **two** active targets (an internal panel beside the AOC) and both asserted exactly one row -
+which left the brightness path and the scripted night with no working end-to-end regression.
+`Program.cs` gains one seam (each row's slider and gear carry `monitor.Id` - `DDC:<device path>` /
+`WMI:<InstanceName>` - as their UI Automation id, so a row is bound to a display instead of guessed
+at), and each verifier drives **every** row against its **own** outside witness: the read-only EXP02
+probe for the DDC row, an independent `Get-CimInstance` WMI read for the panel row (`Display 1`, EDID
+`BOE0764`). **Run 2026-10-15:** `verify-control` 28 checks (22 with `-SkipInternal`) and
+`verify-schedule` 35, 0 failed, with the regressions green (38 / 19 / 114 / 42 / 34 / 63 headless;
+30 / 27 / 42 / 60 end to end). The panel was driven 67 -> 57 -> 67 and the AOC 57 -> 47 -> 57; a
+scripted night at strength 47 faded both (the AOC staircase 57 -> 56 -> 54 -> 52 -> 48 -> 47), held
+both, honoured a manual move on the AOC **while the panel stayed held** (per-display override, which
+a one-row run could not have observed), ramped the panel back to its own 67, left the AOC its 57 and
+every display at its original value. **The WMI path is exercised for the first time** - EXP05's
+boundary (implemented, never exercised) - and two defects were found only by driving: a reused `$p`
+loop variable clobbered the process object and left a night running on the desktop, and a
+non-overridden display is mid-ramp at turn-off so its restore needs a poll. Boundaries: the panel's
+staircase is not sampled (a WMI read is slower than a fade step), a row is a count-matched witness
+rather than an identified one (the probe names a device, not a row), and `verify.ps1`'s stale
+`--rows` help line is left alone. Recommend **EXP11 = the tray shell + autostart** - the standing
+step, now with its regressions back and the flyout corner EXP09 proved - then the stored `theme=`
+preference, real sunset/sunrise, per-monitor profiles.

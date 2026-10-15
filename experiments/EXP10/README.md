@@ -156,27 +156,69 @@ Boundaries this run does not cross:
   one-line cleanup nobody has owned.
 
 ## Conclusion (findings)
-_Pending the user's declaration._
+**`success`** (2026-10-15; the agent's recommendation, pending the user's declaration). The two
+verifiers EXP09 left un-runnable now run to completion on this two-display machine and drive **every**
+row against its **own** outside witness - so the brightness path and the scripted night have their
+end-to-end regressions back, and they cover more than they did before the machine grew a second
+display.
+
+What this settles:
+- **A row is bound to a display, not guessed at.** Each row's slider and gear carry `monitor.Id`
+  (`DDC:<device path>` / `WMI:<InstanceName>`) as their UI Automation id; rows equal the probe's own
+  `active paths` (2), one gear per row, and each row's value equals the value its own witness reads.
+- **Every row is drivable against its own witness.** The internal panel `67 -> 57 -> 67` with an
+  independent `Get-CimInstance` WMI read following, the AOC `57 -> 47 -> 57` with the probe following,
+  and neither drive moved the other display. **The WMI path is exercised for the first time** - EXP05
+  implemented it and recorded it as never exercised, which is now closed.
+- **The schedule holds per display.** Night at strength 47: the AOC's staircase `57 -> 56 -> 54 -> 52
+  -> 48 -> 47`, both displays at 47, a manual move on the AOC honoured **while the panel stayed held**
+  (a one-row run could not have observed the per-display override), the overridden AOC left its 57
+  and the panel ramped back to its own 67 at turn-off, and both at their originals after close.
+- **Nothing else moved.** 28 / 35 end to end (22 with `-SkipInternal`) and 38 / 19 / 114 / 42 / 34 / 63
+  headless, 30 / 27 / 42 / 60 end to end, all passing; every run left the real
+  `%APPDATA%\Monitorn\settings.ini` untouched and every display at its own value.
+- **It was worth relaxing rather than asserting once.** Driving it found the two defects the code did
+  not show: a reused `$p` loop variable clobbered the process object (the app was never asked to
+  close, and a scripted night was left running on the desktop), and a non-overridden display is
+  mid-ramp at turn-off, so its restore needs a poll.
+
+What it deliberately does not settle - the boundary:
+- **The panel's staircase is not sampled.** A WMI read is slower than a fade step (0.33 s real at
+  `--rate 30`), so the panel is asserted at the night level and at the restore only; the probe carries
+  the staircase claim.
+- **A row is a count-matched witness, not an identified one.** The probe names the device a value came
+  from but nothing ties it to a row id, so with two DDC-readable displays the override is asserted
+  count-wise rather than per row. This machine has one, so the mapping is unambiguous here.
+- **Two display kinds are witnessed, and only two.** A row that is neither `DDC:` nor `WMI:` fails by
+  design instead of passing silently.
+- **`rows == active paths` is this machine's fact**: both active targets are controllable. A target the
+  app cannot control would legitimately differ, and that one check would name it.
+- **Not the tray shell.** No icon, no autostart, no z-order or activation change - that is EXP11.
+- **`verify.ps1` is still stale** (its help offers `--rows 5`, a seam EXP05 removed); left alone, as
+  outside this experiment's radius.
+
+Next, in the order the seams suggest: the overview's standing step, the **tray shell + autostart**
+(EXP11 - it also decides what closing does), with the flyout corner EXP09 proved and the regressions
+this experiment restored; then a stored `theme=` preference plus a switch, real sunset/sunrise, and
+per-monitor profiles.
+
+Evidence: the commands above; the console output of both verifiers and the shots in
+`%TEMP%\monitorn-exp10\`.
 
 ## Learnings
-- `Get-CimInstance -Namespace root/wmi -ClassName WmiMonitorBrightness` (one `CurrentBrightness` per
-  `InstanceName`) is an **outside witness for an internal panel**: the DDC probe cannot see it, so
-  without this a panel row could only be checked against the app's own text. Key the row to its
-  instance - `Program.cs` puts `monitor.Id` ("WMI:<InstanceName>") on the slider as its UI Automation
-  id, so `$slider.Current.AutomationId` gives both the kind and the instance. Use when a verifier
-  must drive a row it has no device-level witness for.
-- A verifier that drives the surface must keep the **process object** out of any loop variable: using
-  `$p` for a fade sample index in `verify-schedule.ps1` clobbered `Start-Process`'s object, so `$p.Id`
-  became 0 (the gear check then looked for pid 0) and `$p.WaitForExit` failed on an `Int32`, leaving a
-  scripted night running on the desktop. Use a distinct name (`$di`) for indices.
-- A display the night did **not** override is ramped back to its day value at turn-off, so its restore
-  is not readable at one instant: after the status changes it was still at 52 of 47 -> 67. Poll for the
-  baseline (with a bounded wait) instead of asserting a single sample; only an overridden display is
-  left untouched and can be asserted immediately.
-- The probe's output is per monitor block (`monitor[i] device=\\.\DISPLAYn` then `brightness cur=`), so
-  parse it into (device, value) pairs rather than one `brightness cur=` regex match: a single match
-  silently reads whichever readable display comes first. Compare two readings element-wise to assert
-  "exactly one display moved", which holds even when two displays share a value.
-- This machine's fixtures for the two-witness setup: active paths 2; `\\.\DISPLAY1` = AOC `Q27G3G3R3`
-  over DDC/CI (57); internal panel EDID `BOE0764`, WMI `DISPLAY\BOE0764\4&29539ac7&0&UID265988_0`
-  (67), the app's friendly name for it empty so its row reads "Display 1".
+- Witness a row without a device-level probe: `Get-CimInstance -Namespace root/wmi -ClassName
+  WmiMonitorBrightness` (one `CurrentBrightness` per `InstanceName`) is an outside witness for an
+  internal panel the DDC probe cannot see, and `Program.cs` puts `monitor.Id` on each slider as its UI
+  Automation id, so `$slider.Current.AutomationId` yields both the kind (`DDC:` / `WMI:`) and the WMI
+  instance to read. Use when a verifier must drive a row it cannot see over DDC/CI.
+- Parse the probe per monitor block (`monitor[i] device=\\.\DISPLAYn`, then `brightness cur=`) into
+  (device, value) pairs, never one `brightness cur=` regex match: compare two readings element-wise to
+  assert "exactly one display moved" - which still holds when two displays share a value.
+- Keep the process object out of any loop variable. `$p` reused as a fade sample index clobbered
+  `Start-Process`'s object: `$p.Id` became 0, `$p.WaitForExit` failed on an `Int32`, and a scripted
+  night was left running on the desktop.
+- A display the night did **not** override is mid-ramp at turn-off (52 of 47 -> 67 a second later):
+  poll for its baseline with a bounded wait; only an overridden display can be asserted immediately.
+- Machine fixtures for the two-witness setup: active paths 2; `\\.\DISPLAY1` = AOC `Q27G3G3R3` over
+  DDC/CI (57); internal panel EDID `BOE0764`, WMI `DISPLAY\BOE0764\4&29539ac7&0&UID265988_0` (67), its
+  friendly name empty so the row reads "Display 1".

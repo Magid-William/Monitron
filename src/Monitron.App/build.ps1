@@ -6,7 +6,9 @@
 # EXP10 (each row's display id as its UI automation id, for the N-display verifiers), and by EXP11
 # (the tray shell: Tray.cs, AutoStart.cs, TrayIcon.cs - and the System.Drawing the icon is drawn with),
 # and by EXP12 (the app's own icon: IconAssets.cs + IcoFile.cs read the generated Monitron.ico, which
-# csc embeds with /win32icon and /resource; icogen.ps1 regenerates it from logo.svg).
+# csc embeds with /win32icon and /resource; icogen.ps1 regenerates it from logo.svg), and by EXP14
+# (the display set made live: DisplaySet.cs - the diff, the registry and the --monitors scripted set -
+# and DisplayWatcher.cs, the WM_DISPLAYCHANGE hook).
 #
 # The UI is written code-only (no XAML), so no markup/BAML step is needed and csc alone
 # can produce the executable; WPF comes from the in-box runtime assemblies.
@@ -52,6 +54,8 @@ $args = @('/nologo', '/target:winexe', '/platform:x64', "/out:$out",
     @((Join-Path $here 'Program.cs'),
       (Join-Path $here 'Brightness.cs'),
       (Join-Path $here 'BrightnessController.cs'),
+      (Join-Path $here 'DisplaySet.cs'),
+      (Join-Path $here 'DisplayWatcher.cs'),
       (Join-Path $here 'Schedule.cs'),
       (Join-Path $here 'ScheduleSettings.cs'),
       (Join-Path $here 'SettingsPersistence.cs'),

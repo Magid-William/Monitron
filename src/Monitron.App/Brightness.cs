@@ -107,6 +107,18 @@ namespace Monitron.App
             e.Applied = applied;
         }
 
+        /// <summary>
+        /// The display has gone (EXP14): drop everything about it, so a value still settling is never
+        /// written to a monitor that is not there, and a departed display cannot be flushed on close.
+        /// </summary>
+        public void Forget(string id)
+        {
+            _entries.Remove(id);
+        }
+
+        /// <summary>How many displays the writer is tracking - evidence that a departed one was forgotten.</summary>
+        public int Count { get { return _entries.Count; } }
+
         /// <summary>The user moved a slider. Records the latest value and restarts the settle window.</summary>
         public void Request(string id, int value)
         {

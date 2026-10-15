@@ -237,6 +237,18 @@ namespace Monitron.App
         public int Baseline(string id) { return Get(id).Baseline; }
         public bool IsOverridden(string id) { return Get(id).Overridden; }
 
+        /// <summary>
+        /// The display has gone (EXP14): forget it, so Restore() cannot hand a value back to a monitor
+        /// that is no longer attached, and a display re-attached later starts from its own reading.
+        /// </summary>
+        public void Forget(string id)
+        {
+            _entries.Remove(id);
+        }
+
+        /// <summary>How many displays the schedule knows about - evidence that a departed one was forgotten.</summary>
+        public int Count { get { return _entries.Count; } }
+
         // --- the value a display should have in the current phase ---
 
         private int Level(Entry e, DateTimeOffset now, TimeSpan on, TimeSpan off, TimeSpan fade)

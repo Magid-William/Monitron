@@ -18,6 +18,7 @@ only the user declares the final status.
 | EXP11 | The tray shell: notification-area icon, Run on Windows startup, Quit | success | EXP11 | 2026-10-15 | 2026-10-15 | [experiments/EXP11/README.md](experiments/EXP11/README.md) |
 | EXP12 | The app icon: the neon-green logo, as the app's one multi-size .ico | success | EXP12 | 2026-10-15 | 2026-10-15 | [experiments/EXP12/README.md](experiments/EXP12/README.md) |
 | EXP13 | The slider knob: a click lands where you clicked | success | EXP13 | 2026-10-15 | 2026-10-15 | [experiments/EXP13/README.md](experiments/EXP13/README.md) |
+| EXP14 | Live displays: re-detect the display set on a display change | inProg | EXP14 | 2026-10-16 | - | [experiments/EXP14/README.md](experiments/EXP14/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -275,3 +276,16 @@ then real sunset/sunrise by location, then per-monitor profiles. **Published** a
 https://github.com/Magid-William/Monitron (public, MIT, `main` = this branch, all experiment branches
 pushed); `README.md` was rewritten from its "Pre-implementation" scaffold and the author's local
 checkout path was removed from the records.
+
+**EXP14:** in progress. The user's first symptom, made live: the display set is `Detect()`ed once
+(`Program.cs`) and never re-read, so after a projection change (Extend / external-only / duplicate) a
+vanished display keeps a row and a new one has none. A `DisplaySet` diff + `DisplayRegistry` re-run on a
+debounced `WM_DISPLAYCHANGE` (and on the tray's Show) now adds and removes rows, prunes the writer and
+scheduler for removed ids, and a `SurfaceView` detaches a removed row's handlers; an empty detection
+(zero active paths mid-switch) is not trusted. Seams: `--monitors`, `--display-change-after`,
+`--display-report`; new `display-test.ps1` (headless) and `verify-displays.ps1` (end to end). The
+second symptom the user raised - the surface opening on the wrong screen - was attempted as a
+pointer-driven placement, built and driven, then **rolled back** the same day: it opened in odd places
+(a monitor's `0,0`) and did not follow the user between monitors. `SystemPlacement`, `PlacementApp` and
+`Placement` are restored to EXP09 untouched, the `--place-cursor` seam is gone, and issue 2 stands open
+with the recommendation to try a *remembered* screen (persisted) next.

@@ -30,6 +30,10 @@ namespace Monitron.App
 
         public IList<MonitorInfo> Detect()
         {
+            // EXP14: Detect() is re-run on a display change, so it must not accumulate: the previous
+            // handles and WMI instances are given back before a new reading is taken.
+            Release();
+
             var monitors = new List<MonitorInfo>();
             var ddc = DdcHandles();              // gdi device name -> (handle, allocation)
             IList<KeyValuePair<string, int>> panels = WmiPanels();   // InstanceName -> current
@@ -106,6 +110,16 @@ namespace Monitron.App
 
         public void Dispose()
         {
+            Release();
+        }
+
+        /// <summary>
+        /// Gives back everything the last detection took: the physical-monitor arrays from dxva2 and
+        /// the maps keyed by display id. Called at the start of every Detect (EXP14 re-runs it) and on
+        /// Dispose, so a display change cannot leak handles.
+        /// </summary>
+        private void Release()
+        {
             foreach (KeyValuePair<uint, IntPtr> a in _allocations)
             {
                 try { DestroyPhysicalMonitors(a.Key, a.Value); } catch { }
@@ -113,6 +127,7 @@ namespace Monitron.App
             }
             _allocations.Clear();
             _ddcHandles.Clear();
+            _wmiInstances.Clear();
         }
 
         // ---------------------------------------------------------------- display config

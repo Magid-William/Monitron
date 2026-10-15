@@ -25,6 +25,12 @@
 //         accent while that row's slider has the focus. verify-slider.ps1 drives all three.
 //         Added at the user's ask after conclusion: the hint paragraph that sat under the schedule
 //         status ("Drag a slider to set a monitor...") is gone - the rows and the status say enough.
+// EXP14 - and the app's picture of the desktop made live. The display set is no longer read once at
+//         launch: a WM_DISPLAYCHANGE re-detects, a DisplaySet diff adds and removes rows and prunes the
+//         writer and the schedule, and the tray's Show re-detects too (DisplaySet.cs, DisplayWatcher.cs).
+//         --monitors / --display-change-after / --display-report are its verification seams; the
+//         placement (EXP09) and every other --place-* seam are unchanged. (A pointer-driven placement
+//         was tried in this experiment and rolled back; see experiments/EXP14/README.md.)
 //
 // One row per ACTIVE display: its real name, its real current brightness on a slider, and a gear
 // that opens the settings window (EXP04). Dragging a slider is debounced by BrightnessWriter and
@@ -50,63 +56,125 @@ using System.Windows.Threading;
 
 namespace Monitron.App
 {
-    internal static class Surface
+    /// <summary>
+    /// The surface window and the rows in it. EXP14: the rows are no longer fixed at construction -
+    /// a display that appears is added and one that goes away is removed, and a removed row unhooks
+    /// itself from the writer so a departed display leaves nothing behind.
+    /// </summary>
+    internal sealed class SurfaceView
     {
         // The palette lives in Theme.cs now (EXP08): one ThemeBrushes instance is handed to every
         // row, so flipping the theme recolours the whole surface without rebuilding it.
         private static readonly FontFamily GlyphFont = new FontFamily("Segoe MDL2 Assets");
         private const string GearGlyph = "\uE713"; // Segoe MDL2 Assets: Settings
 
-        public static Window Build(IList<MonitorInfo> monitors, BrightnessWriter writer, NightLightScheduler scheduler,
-            ThemeState theme, double width, Action onSettings, out TextBlock status)
+        private readonly BrightnessWriter _writer;
+        private readonly NightLightScheduler _scheduler;
+        private readonly ThemeBrushes _t;
+        private readonly Action _onSettings;
+
+        private readonly StackPanel _rows = new StackPanel();       // one card per display, in detection order
+        private readonly TextBlock _empty;                          // shown when there is no row at all
+        private readonly List<string> _order = new List<string>();  // the ids on screen, in order
+        private readonly Dictionary<string, Border> _cards = new Dictionary<string, Border>();
+        private readonly Dictionary<string, Action> _detach = new Dictionary<string, Action>();
+
+        /// <summary>The window itself - it lives for the app's life, its rows do not.</summary>
+        public Window Shell { get; private set; }
+
+        /// <summary>The schedule's line, which the app rewrites on every tick.</summary>
+        public TextBlock Status { get; private set; }
+
+        /// <summary>The displays on screen right now.</summary>
+        public IList<string> Ids { get { return _order; } }
+
+        private SurfaceView(IList<MonitorInfo> monitors, BrightnessWriter writer, NightLightScheduler scheduler,
+            ThemeState theme, double width, Action onSettings)
         {
-            ThemeBrushes t = theme.Brushes;
+            _writer = writer;
+            _scheduler = scheduler;
+            _t = theme.Brushes;
+            _onSettings = onSettings;
+
             var root = new StackPanel { Margin = new Thickness(18, 16, 18, 16) };
+            root.Children.Add(Label("Monitron", 16, _t.Ink, FontWeights.SemiBold, new Thickness(0, 0, 0, 2)));
+            root.Children.Add(Label("Brightness per display", 12, _t.Muted, FontWeights.Normal, new Thickness(0, 0, 0, 14)));
+            root.Children.Add(_rows);
 
-            root.Children.Add(Label("Monitron", 16, t.Ink, FontWeights.SemiBold, new Thickness(0, 0, 0, 2)));
-            root.Children.Add(Label("Brightness per display", 12, t.Muted, FontWeights.Normal, new Thickness(0, 0, 0, 14)));
-
-            if (monitors.Count == 0)
-            {
-                root.Children.Add(Label(
-                    "No controllable displays were detected. A display is controllable when it is an "
-                    + "active target and answers DDC/CI or the WMI brightness API.",
-                    12, t.Muted, FontWeights.Normal, new Thickness(0, 0, 0, 0)));
-            }
-            else
-            {
-                foreach (MonitorInfo monitor in monitors) root.Children.Add(Row(monitor, writer, scheduler, t, onSettings));
-            }
+            _empty = Label(
+                "No controllable displays were detected. A display is controllable when it is an "
+                + "active target and answers DDC/CI or the WMI brightness API.",
+                12, _t.Muted, FontWeights.Normal, new Thickness(0, 0, 0, 0));
+            _empty.Visibility = Visibility.Collapsed;
+            root.Children.Add(_empty);
 
             // What the schedule is doing right now. It carries a fixed automation id so a verifier
             // can read this one element instead of guessing which text node is the status; its
             // AutomationProperties.Name is deliberately left alone, because UIA reports that name
             // instead of the text, and the text is the whole point.
-            status = new TextBlock
+            Status = new TextBlock
             {
                 Text = "",
                 FontSize = 11,
-                Foreground = t.Ink,
+                Foreground = _t.Ink,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 4, 0, 0),
             };
-            System.Windows.Automation.AutomationProperties.SetAutomationId(status, "NightLightStatus");
-            root.Children.Add(status);
+            System.Windows.Automation.AutomationProperties.SetAutomationId(Status, "NightLightStatus");
+            root.Children.Add(Status);
 
-            var window = new Window
+            Shell = new Window
             {
                 Title = "Monitron",
                 Width = width,
                 SizeToContent = SizeToContent.Height,
                 MinWidth = 300,
                 ResizeMode = ResizeMode.CanResizeWithGrip,
-                Background = t.WindowBg,
+                Background = _t.WindowBg,
                 FontFamily = new FontFamily("Segoe UI"),
                 FontSize = 13,
                 Content = root,
             };
-            Theming.Bind(window, theme);   // the palette, and the templates the OS theme would keep light
-            return window;
+            Theming.Bind(Shell, theme);   // the palette, and the templates the OS theme would keep light
+
+            foreach (MonitorInfo monitor in monitors) Add(monitor);
+        }
+
+        public static SurfaceView Build(IList<MonitorInfo> monitors, BrightnessWriter writer, NightLightScheduler scheduler,
+            ThemeState theme, double width, Action onSettings)
+        {
+            return new SurfaceView(monitors, writer, scheduler, theme, width, onSettings);
+        }
+
+        /// <summary>A display just appeared: give it a row (EXP14).</summary>
+        public void Add(MonitorInfo monitor)
+        {
+            if (_cards.ContainsKey(monitor.Id)) return;
+            RowWidget row = Row(monitor, _writer, _scheduler, _t, _onSettings);
+            _rows.Children.Add(row.Card);
+            _cards[monitor.Id] = row.Card;
+            _detach[monitor.Id] = row.Detach;
+            _order.Add(monitor.Id);
+            UpdateEmpty();
+        }
+
+        /// <summary>A display has gone: take its row away and unhook it from the writer (EXP14).</summary>
+        public void Remove(string id)
+        {
+            Border card;
+            if (!_cards.TryGetValue(id, out card)) return;
+            _rows.Children.Remove(card);
+            Action detach;
+            if (_detach.TryGetValue(id, out detach) && detach != null) detach();
+            _cards.Remove(id);
+            _detach.Remove(id);
+            _order.Remove(id);
+            UpdateEmpty();
+        }
+
+        private void UpdateEmpty()
+        {
+            _empty.Visibility = _cards.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private static TextBlock Label(string text, double size, Brush brush, FontWeight weight, Thickness margin)
@@ -123,7 +191,7 @@ namespace Monitron.App
         }
 
         /// <summary>One monitor: name + live value above a slider, gear button at the right.</summary>
-        private static Border Row(MonitorInfo monitor, BrightnessWriter writer, NightLightScheduler scheduler,
+        private static RowWidget Row(MonitorInfo monitor, BrightnessWriter writer, NightLightScheduler scheduler,
             ThemeBrushes t, Action onSettings)
         {
             var value = new TextBlock
@@ -208,8 +276,9 @@ namespace Monitron.App
             };
 
             // A write's outcome comes back from the writer, not from the slider - and the slider
-            // follows it, so the row cannot show one value while the monitor holds another.
-            writer.Written += delegate(string id, int applied)
+            // follows it, so the row cannot show one value while the monitor holds another. The two
+            // handlers are kept so a removed row can unsubscribe (EXP14).
+            Action<string, int> onWritten = delegate(string id, int applied)
             {
                 if (id != monitor.Id) return;
                 syncing = true;
@@ -218,12 +287,14 @@ namespace Monitron.App
                 value.Text = applied.ToString(CultureInfo.InvariantCulture);
                 notes.Visibility = Visibility.Collapsed;
             };
-            writer.Failed += delegate(string id, string error)
+            Action<string, string> onFailed = delegate(string id, string error)
             {
                 if (id != monitor.Id) return;
                 notes.Text = "Last change was not applied (" + error + ").";
                 notes.Visibility = Visibility.Visible;
             };
+            writer.Written += onWritten;
+            writer.Failed += onFailed;
 
             var column = new StackPanel();
             column.Children.Add(caption);
@@ -280,7 +351,20 @@ namespace Monitron.App
                 card.BorderBrush = slider.IsKeyboardFocusWithin ? t.Accent : t.RowEdge;
             };
 
-            return card;
+            // A removed row unhooks itself, so the writer's event list does not keep rows that are no
+            // longer on screen (EXP14).
+            return new RowWidget
+            {
+                Card = card,
+                Detach = delegate { writer.Written -= onWritten; writer.Failed -= onFailed; },
+            };
+        }
+
+        /// <summary>A row's card, and how to unhook it from the writer when its display goes away.</summary>
+        private sealed class RowWidget
+        {
+            public Border Card;
+            public Action Detach;
         }
     }
 
@@ -331,6 +415,10 @@ namespace Monitron.App
             string trayReportDir = null;  // --tray-report <dir>: the app's own tray reading
             string iconReportDir = null;  // --icon-report <dir>: the app's own icon reading (EXP12)
             TimeSpan? quitAfter = null;   // --quit-after <sec>: run the real Quit after N seconds (verification)
+            string monitorsSpec = null;   // --monitors <spec>: a scripted display set (EXP14, verification)
+            TimeSpan? displayAfter = null; // --display-change-after <sec> <spec>: a scripted display change
+            string displayAfterSpec = null;
+            string displayReportDir = null; // --display-report <dir>: the app's own display reading (EXP14)
 
             for (int i = 0; i < args.Length; i++)
             {
@@ -390,6 +478,13 @@ namespace Monitron.App
                 else if (a == "--tray-report" && i + 1 < args.Length) trayReportDir = args[++i];
                 else if (a == "--icon-report" && i + 1 < args.Length) iconReportDir = args[++i];
                 else if (a == "--quit-after" && i + 1 < args.Length) quitAfter = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
+                else if (a == "--monitors" && i + 1 < args.Length) monitorsSpec = args[++i];
+                else if (a == "--display-change-after" && i + 2 < args.Length)
+                {
+                    displayAfter = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
+                    displayAfterSpec = args[++i];
+                }
+                else if (a == "--display-report" && i + 1 < args.Length) displayReportDir = args[++i];
             }
 
             var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
@@ -442,22 +537,24 @@ namespace Monitron.App
             }
             else clock = delegate { return DateTimeOffset.Now; };
 
-            // Real detection: active displays, read once. No sample rows any more.
-            var controller = new BrightnessController();
-            IList<MonitorInfo> monitors;
-            try { monitors = controller.Detect(); }
-            catch { monitors = new List<MonitorInfo>(); }
+            // Real detection: active displays from the hardware - unless a verifier scripted them
+            // (--monitors), the seam a display change is driven through without touching the user's
+            // displays. EXP14: detection is a machine the app re-runs, not a launch-only read.
+            IBrightnessController controller;
+            IDisposable controllerResources = null;
+            ScriptedController scriptedController = null;
+            if (monitorsSpec != null) { scriptedController = new ScriptedController(monitorsSpec); controller = scriptedController; }
+            else { var hardware = new BrightnessController(); controller = hardware; controllerResources = hardware; }
 
             var writer = new BrightnessWriter(controller, Settle, clock);
-            foreach (MonitorInfo monitor in monitors) writer.Seed(monitor.Id, monitor.Current);
-
             var scheduler = new NightLightScheduler(settings, clock,
                 fade.HasValue ? fade.Value : Fade, step.HasValue ? step.Value : Step);
-            foreach (MonitorInfo monitor in monitors) scheduler.Observe(monitor.Id, monitor.Min, monitor.Max, monitor.Current);
+            var registry = new DisplayRegistry(controller, writer, scheduler);
+            IList<MonitorInfo> monitors = registry.Seed();   // adopt every display: a row, a seed, an observe
 
             var host = new SettingsHost(settings, theme);
-            TextBlock status;
-            Window window = Surface.Build(monitors, writer, scheduler, theme, width, delegate { host.Show(); }, out status);
+            SurfaceView view = SurfaceView.Build(monitors, writer, scheduler, theme, width, delegate { host.Show(); });
+            Window window = view.Shell;
 
             // The app's own icon (EXP12): the generated Monitron.ico, embedded in the exe, on the
             // window as well as in the tray - and on the --no-tray lifecycle too, where nothing else
@@ -512,9 +609,40 @@ namespace Monitron.App
                 saveError = store.Save(settings) ? null : store.LastError;
             };
 
+            // --- EXP14: the display set is live. A display change re-reads it and reconciles the
+            // rows, the writer and the schedule; the tray's Show does the same (below). ---
+            Action refreshDisplays = delegate
+            {
+                DisplayDiff diff = registry.Refresh();
+                foreach (string id in diff.Removed) view.Remove(id);
+                foreach (MonitorInfo monitor in diff.Added) view.Add(monitor);
+                WriteDisplayReport(displayReportDir, registry, view);
+                if (diff.Any)
+                {
+                    Apply(scheduler, writer);   // an arriving display takes the current phase at once
+                    view.Status.Text = StatusText(scheduler, saveError);
+                }
+            };
+            DisplayWatcher.Attach(window, refreshDisplays);
+            WriteDisplayReport(displayReportDir, registry, view);
+
+            if (displayAfter.HasValue)
+            {
+                // A display change, driven: the same re-read a WM_DISPLAYCHANGE calls, on a clock like
+                // --now's. With --monitors it switches the scripted set, so a row really comes and goes.
+                DispatcherTimer change = new DispatcherTimer { Interval = displayAfter.Value };
+                change.Tick += delegate
+                {
+                    change.Stop();
+                    if (scriptedController != null) scriptedController.Set(displayAfterSpec);
+                    refreshDisplays();
+                };
+                change.Start();
+            }
+
             // One pass at launch, so a run started inside the night window dims at once.
             Apply(scheduler, writer);
-            status.Text = StatusText(scheduler, saveError);
+            view.Status.Text = StatusText(scheduler, saveError);
 
             // One timer drives both machines: the scheduler decides what it wants (and dedups it),
             // the writer decides when it lands. 200 ms keeps a slider drag responsive.
@@ -522,7 +650,7 @@ namespace Monitron.App
             timer.Tick += delegate
             {
                 Apply(scheduler, writer);
-                status.Text = StatusText(scheduler, saveError);
+                view.Status.Text = StatusText(scheduler, saveError);
             };
             timer.Start();
 
@@ -541,7 +669,7 @@ namespace Monitron.App
                 timer.Stop();
                 foreach (NightWrite w in scheduler.Restore()) writer.Request(w.Id, w.Value);
                 writer.Flush();   // land the last value if the window closes mid-drag or mid-fade
-                controller.Dispose();
+                if (controllerResources != null) controllerResources.Dispose();
             };
 
             TrayIcon icon = null;
@@ -555,6 +683,8 @@ namespace Monitron.App
 
             Action show = delegate
             {
+                // EXP14: opening reconciles the displays - they may have changed while it was hidden.
+                refreshDisplays();
                 if (!window.IsVisible) window.Show();
                 if (replace != null) replace();   // the work area may have moved while it was hidden
                 window.Activate();
@@ -684,6 +814,44 @@ namespace Monitron.App
                 else System.IO.File.Move(temp, path);
             }
             catch { /* a report is evidence, never a reason to fail */ }
+        }
+
+        /// <summary>
+        /// The app's own display reading (--display-report): how many times the displays were read,
+        /// what was detected, and the rows on screen. The outside witness is UI Automation's row set;
+        /// this is only what the app believes.
+        /// </summary>
+        private static void WriteDisplayReport(string dir, DisplayRegistry registry, SurfaceView view)
+        {
+            if (string.IsNullOrEmpty(dir)) return;
+
+            var text = new System.Text.StringBuilder();
+            text.Append("display.report=1").Append('\n');
+            text.Append("detections=").Append(registry.Detections.ToString(CultureInfo.InvariantCulture)).Append('\n');
+            text.Append("detected=").Append(Join(registry.Ids)).Append('\n');
+            text.Append("rows=").Append(Join(view.Ids)).Append('\n');
+
+            try
+            {
+                System.IO.Directory.CreateDirectory(dir);
+                string path = System.IO.Path.Combine(dir, "display.txt");
+                string temp = path + ".tmp";
+                System.IO.File.WriteAllText(temp, text.ToString());
+                if (System.IO.File.Exists(path)) System.IO.File.Replace(temp, path, null);
+                else System.IO.File.Move(temp, path);
+            }
+            catch { /* a report is evidence, never a reason to fail */ }
+        }
+
+        private static string Join(IList<string> ids)
+        {
+            var text = new System.Text.StringBuilder();
+            foreach (string id in ids)
+            {
+                if (text.Length > 0) text.Append(';');
+                text.Append(id);
+            }
+            return text.ToString();
         }
 
         /// <summary>"light" | "dark" for the OS reading, from a command line.</summary>

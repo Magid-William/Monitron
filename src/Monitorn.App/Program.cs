@@ -8,6 +8,9 @@
 // EXP09 - and the screen position: the surface sits in the notification area's corner of the monitor
 //         it is on, above that monitor's taskbar, like a tray flyout (Placement.cs, SystemPlacement.cs,
 //         PlacementApp.cs). --no-place and --place-* are its verification seams.
+// EXP10 - and the verifier seam: each row's slider and gear carry that display's own id as their UI
+//         Automation id ("DDC:<device path>" or "WMI:<InstanceName>"), so a verifier can bind a row
+//         to a display on a machine with more than one active target.
 //
 // One row per ACTIVE display: its real name, its real current brightness on a slider, and a gear
 // that opens the settings window (EXP04). Dragging a slider is debounced by BrightnessWriter and
@@ -170,6 +173,11 @@ namespace Monitorn.App
                 VerticalAlignment = VerticalAlignment.Center,
                 ToolTip = monitor.DisplayName + " brightness, " + monitor.Min + "-" + monitor.Max,
             };
+            // Which display this row drives, in the row's own words: monitor.Id is already
+            // "DDC:<device path>" or "WMI:<InstanceName>", so a verifier can bind the row to a
+            // display - and to the WMI instance it must read to witness an internal panel - without
+            // guessing by position or by a value that two rows could share (EXP10).
+            System.Windows.Automation.AutomationProperties.SetAutomationId(slider, monitor.Id);
             // True while the slider is being moved by a write's outcome rather than by the user:
             // assigning Value raises ValueChanged, and that must not be mistaken for a drag - the
             // schedule would read its own move as the user taking over and stand down for the night.
@@ -226,6 +234,7 @@ namespace Monitorn.App
             // An icon-only button has no readable name; give it one (accessibility), which is also
             // what the verifier finds it by - a WPF Slider puts its own Buttons in the UIA tree.
             System.Windows.Automation.AutomationProperties.SetName(gear, "Settings for " + monitor.DisplayName);
+            System.Windows.Automation.AutomationProperties.SetAutomationId(gear, monitor.Id);   // EXP10: this row's display
 
             var grid = new Grid();
             grid.ColumnDefinitions.Add(new ColumnDefinition());

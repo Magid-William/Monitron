@@ -10,7 +10,7 @@ only the user declares the final status.
 | EXP03 | Per-monitor control surface (slider + gear), UI only | success | EXP03 | 2026-10-15 | 2026-10-15 | [experiments/EXP03/README.md](experiments/EXP03/README.md) |
 | EXP04 | Dummy "Schedule night light" settings window, UI only | success | EXP04 | 2026-10-15 | 2026-10-15 | [experiments/EXP04/README.md](experiments/EXP04/README.md) |
 | EXP05 | Bring brightness to life: real detection + real writes on the surface | inProg | EXP05 | 2026-10-15 | - | [experiments/EXP05/README.md](experiments/EXP05/README.md) |
-| EXP06 | Apply the night-light schedule (scheduler FSM + real monitors) | inProg | EXP06 | 2026-10-15 | - | [experiments/EXP06/README.md](experiments/EXP06/README.md) |
+| EXP06 | Apply the night-light schedule (scheduler FSM + real monitors) | success | EXP06 | 2026-10-15 | 2026-10-15 | [experiments/EXP06/README.md](experiments/EXP06/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -57,3 +57,20 @@ the user asked. **Run 2026-10-15:** the one active target (AOC `Q27G3G3R3`) is d
 at its real 30; a slider drove it **30 -> 20 -> 30** with the independent read-only `probe.exe`
 following each step; 19 headless debounce assertions and 11 UI Automation checks, all passing. The
 internal-WMI path is implemented but not exercised (no internal *active* target on this machine).
+
+**EXP06:** `success`. Applies the schedule EXP02→05 kept deferring. `NightLightScheduler`
+(`Schedule.cs`) derives its phase from an injected clock - day, fade in, night, fade out - fades
+every active display to the strength at turn-on, holds, and hands the captured day value back at
+turn-off, with the thesis' "a manual move ends the schedule for the night" rule. The settings window
+and the scheduler share one `ScheduleSettings`, so an edit applies on the next tick, and a status
+line on the surface names the phase. **Run 2026-10-15:** 114 headless assertions driving the machine
+with a clock the test moves, and 24 checks end to end - a scripted night (`--now`/`--rate 30`, so a
+whole night takes ~50 s) watched by the independent probe on the real AOC: **41 -> 40 -> 37 -> 35 ->
+33 -> 31**, held, a manual move to 41 **not** undone until the next turn-on, and the display left at
+its original 41 when the app closed. Driving it surfaced a UI defect the code did not show: the row's
+slider did not follow the schedule's own write, so the row could show one value while the monitor
+held another (the writer's `Written` event now syncs it, guarded against reading its own write as a
+user move). Nothing is persisted yet; sunset mode is inert by construction (turn-on == turn-off), as
+EXP04 left it. Recommend **EXP07 = persistence** - the settings and the schedule surviving a reboot,
+behind this window - then the tray shell + autostart that makes an overnight dim useful with no
+window open; real sunset/sunrise by location and per-monitor profiles after that.

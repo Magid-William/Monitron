@@ -17,7 +17,7 @@ only the user declares the final status.
 | EXP10 | Raise the brightness regressions to N displays | success | EXP10 | 2026-10-15 | 2026-10-15 | [experiments/EXP10/README.md](experiments/EXP10/README.md) |
 | EXP11 | The tray shell: notification-area icon, Run on Windows startup, Quit | success | EXP11 | 2026-10-15 | 2026-10-15 | [experiments/EXP11/README.md](experiments/EXP11/README.md) |
 | EXP12 | The app icon: the neon-green logo, as the app's one multi-size .ico | success | EXP12 | 2026-10-15 | 2026-10-15 | [experiments/EXP12/README.md](experiments/EXP12/README.md) |
-| EXP13 | The slider knob: a click lands where you clicked | inProg | EXP13 | 2026-10-15 | - | [experiments/EXP13/README.md](experiments/EXP13/README.md) |
+| EXP13 | The slider knob: a click lands where you clicked | success | EXP13 | 2026-10-15 | 2026-10-15 | [experiments/EXP13/README.md](experiments/EXP13/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -238,3 +238,31 @@ tool would undo the colour; the 16-24 px frames keep the same detailed geometry 
 ring); and the green carries the identity by hue rather than luminance (3.6:1 over the taskbar, 1.8:1
 over white). No promotion into `AGENTS.md`. Recommend the standing steps: the stored `theme=`
 preference, then real sunset/sunrise by location, then per-monitor profiles.
+
+**EXP13:** `success` (user-declared). The user's ask - the knob should land where the track is clicked
+instead of nudging one large step away - and the whole app change is **three things in `Program.cs`**
+(~11 lines): `IsMoveToPointEnabled = true` (WPF's own move-to-point: snapped to the tick, clamped, and
+a press on the thumb still left to the drag), an accessible name from the display the slider drives (a
+slider with none is announced as just "slider, 57"), and the row's edge taking the accent while that
+row's slider has the keyboard. The last is the experiment's finding: the first version was WPF's own
+`FocusVisualStyle` ring, it works, but **Windows draws it only for a user who has just typed** -
+`KeyboardNavigation.AlwaysShowFocusVisual` is latched from `SystemParameters.KeyboardCues` when the
+process starts, and that is false for a mouse user - so it is invisible in the common case and cannot
+be verified without altering the machine (`SPI_SETKEYBOARDCUES` with a FALSE value reads back as
+still-true; `pvParam = NULL` with `SPIF_SENDCHANGE` is what hides the cues again). The ring was
+reverted mid-experiment; the cue that ships is ours, unconditional, and it lights on a track click
+too. **Run 2026-10-15:** `verify-slider.ps1` drives a real, guarded mouse click (`WindowFromPoint`
+decides whether the press is sent at all; the cursor is put back) and the same click point was run
+against two builds - **EXP12's, built from its own sources in a temp copy**: value 51 (= 41 +
+`LargeChange`), the thumb **113.5 px** from the click, name `''`, no cue (**24 passed, 6 failed**, and
+the six are exactly the ones this experiment is about); and **this one**: value 85, the thumb **0.5
+px** from the click, the probe reading 41 -> 85, name `Q27G3G3R3 brightness`, 349 px of accent under
+the focused row and none once the keyboard leaves (**30 passed, 0 failed**) - with the drag unbroken
+in both (41 -> 55) and every display left where it was. Boundaries: this machine has one active target
+(the AOC; the internal panel has been gone since EXP10, so the WMI branch is unexercised again), no
+keystroke is synthesized anywhere (the Arrow and Page steps are asserted as what UI Automation
+reports, not by pressing them), the cue is asserted on the light palette only (`--theme light` pins
+the colours the pixels are read by), and the standing suites were not re-run at the user's instruction
+(this touches one file's slider and one border, no model and no `build.ps1`). No promotion into
+`AGENTS.md`. Recommend the standing steps: the stored `theme=` preference - the tray menu joins it -
+then real sunset/sunrise by location, then per-monitor profiles.

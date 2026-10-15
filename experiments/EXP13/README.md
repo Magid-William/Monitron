@@ -18,40 +18,102 @@ or focusing the slider that changes no pixel.
 - Method: the jump is WPF's own move-to-point, switched on for the row's slider
   (`IsMoveToPointEnabled = true`) - the OS slider already snaps to the tick, clamps at the ends and
   leaves a press on the thumb to the thumb. The slider gets an accessible name like the gear beside
-  it. The focus cue is *measured first* (UIA `SetFocus()` plus a frame-diff at the slider's own
-  rect): if the OS focus rectangle already shows on the dark row, nothing is written; if it does
-  not, the smallest fix is one accent focus ring beside the other templates.
-  The claim is a UI claim, so it is verified by driving: a real, guarded mouse click on the track
-  (foreground verified first, point asserted inside the slider's own UIA rect, cursor restored),
-  witnessed from outside the app - the rendered pixels at the filled/unfilled boundary, the display's
-  own reading (the EXP02 probe for the external row, an independent `Get-CimInstance` for the panel),
-  a thumb drag that must still work, and the facts a screen reader sees over UI Automation.
-- May touch: `src/Monitorn.App/Program.cs` (the row's slider), `Theming.cs` (the focus ring only, if
-  the measurement says it is needed), a new `src/Monitorn.App/verify-slider.ps1`, the EXP13 row in
+  it. The focus cue was to be WPF's own `FocusVisualStyle` (an accent ring around the slider); it was
+  written, measured, and dropped - see the Conclusion - and replaced by the row's own edge, set where
+  the row is built. The claim is a UI claim, so it is verified by driving: a real, guarded mouse click
+  on the track (foreground attempted first, the click point asserted to be inside the slider's own
+  UIA rectangle, and the press only sent where `WindowFromPoint` says this app's window would receive
+  it, with the cursor restored), witnessed from outside the app - the rendered pixels at the filled
+  track and at the thumb's own centre, the row's value, the display's own reading (the EXP02 probe
+  over DDC/CI), a thumb drag that must still work, and the facts a screen reader sees.
+- May touch: `src/Monitorn.App/Program.cs` (the row's slider and the row's edge), `Theming.cs` (a note
+  only, in the end), a new `src/Monitorn.App/verify-slider.ps1`, the EXP13 row in
   `experiments-overview.md`, and the header comments naming this experiment.
 - Off-limits: the writer/debounce, the scheduler, settings/persistence, placement, the tray, the
-  icon, `build.ps1` (unless a new source is added), and every existing verifier - their passes and
-  their UIA `SetValue` drives must stay green untouched.
+  icon, `build.ps1` and every existing verifier - all untouched.
 
 ## Open questions (known unknowns)
-- [x] How much of the a11y story this experiment carries - click-to-position plus the accessible
-      name plus the focus cue. (User's call.)
-- [x] Whether a verifier may synthesize a real mouse click - yes, guarded: abort unless the app is
-      foreground and the point is inside the slider's own rect, and restore the cursor. The claim is
-      about real mouse input, and pixels are its only honest witness. (User's call.)
-- [x] Snapped to the tick rather than the raw click point - the slider already snaps, and whole
-      levels are what a monitor takes.
-- [x] The track click no longer nudges by +/-10; PageUp/PageDown keep `LargeChange` - a deliberate
-      behaviour change, recorded as a boundary.
+- [x] How much of the a11y story this experiment carries - click-to-position, the accessible name,
+      and the focus cue. (User's call.)
+- [x] Whether a verifier may synthesize a real mouse click - yes, guarded as in Method above. (User's
+      call.) The claim is about real mouse input, and pixels are its only honest witness.
+- [x] Snapped to the tick rather than the raw click point, clamped at the ends - which is what WPF's
+      `Track.ValueFromPoint` does.
+- [x] The track click no longer nudges by +/-10. Measured, not assumed: the baseline run below shows
+      the old behaviour *was* that nudge.
 - [x] The thumb's drawn size is left alone - the jump removes the need to hit it.
-- [ ] If the one property does not hold on its own, which fallback - proposed default: clear the two
-      track RepeatButtons' commands in the existing `StyleSlider` (two lines), and only if the
-      built-in never fires, own the preview press. The run decides; nothing is assumed.
-- [ ] Out of scope by default: a stored a11y preference, an announced live region, driving the keys
-      themselves (the standing rule sends no keystrokes), touch/flick, and the settings window.
+- [x] Which fallback, had the one property not held: it held, so no fallback was needed and nothing
+      was added to `StyleSlider`.
+- [x] Out of scope: a stored a11y preference, an announced live region, driving the keys themselves
+      (the standing rule sends no keystrokes), touch/flick, and the settings window.
 
 ## Conclusion (findings)
-_Pending._
+`success` (user-declared). A click on a row's track lands the knob on the click and drives the display
+there, and the row is named and shows where the keyboard is. **The whole app change is three things in
+`Program.cs`**: `IsMoveToPointEnabled = true` (one line), `AutomationProperties.SetName(slider,
+"<display> brightness")` (one line), and the row's edge taking the accent while its slider has the
+keyboard (nine lines, comment included). No other app file changed; `Theming.cs` carries a note that
+says why the focus ring is **not** in it.
+
+**Run 2026-10-15.** `verify-slider.ps1`, the same verifier and the same click point (x=2389 on a
+0..100 track sitting at 41), against two builds:
+- **EXP12's build as the baseline** (its `Program.cs` and `Theming.cs`, copied into a temp folder and
+  built there, so the repo tree was never touched): the click put the value at **51** - 41 +
+  `LargeChange`, the nudge - and the thumb drew **113.5 px** from the click; the probe saw 41 -> 51;
+  the accessible name was `''`; the row's edge never took the accent. **24 checks passed, 6 failed**,
+  and the six are exactly the ones this experiment is about.
+- **This build:** value **85**, thumb centre **0.5 px** from the click, probe 41 -> 85, name
+  `Q27G3G3R3 brightness`, and the accent appears under the focused row (349 px of the band under the
+  slider) and is gone when the keyboard leaves (0 px). **30 checks passed, 0 failed.** A thumb drag
+  still works - 41 -> 55 in *both* builds - so the jump did not disturb the drag. Every display was
+  left at its 41 and the user's real settings file was untouched.
+
+**The focus cue is the finding, and it is why this experiment is shorter than it might have been.**
+The first version was the WPF-intended one: a `FocusVisualStyle` accent ring around the slider. It
+works - forced on, it drew 2233 px - but **Windows draws it only for a user who has just typed**:
+`KeyboardNavigation.AlwaysShowFocusVisual` is a static field latched from
+`SystemParameters.KeyboardCues` when the process starts (source: `KeyboardNavigation.cs`), and that
+setting is `False` on a machine driven by the mouse, so the ring is invisible in the common case. It
+also cannot be verified without altering the machine: the flag can be turned on before the app starts
+(the run did that, and the ring appeared), but `SystemParametersInfo(SPI_SETKEYBOARDCUES)` with a
+`FALSE` value reads back as still-true - only `pvParam = NULL` with `SPIF_SENDCHANGE` hides them
+again. With the flag on, Windows' own dotted focus rectangle *does* show over the slider
+(`focus-on.png` in the old run caught both), which is the gate seen from the other side. So the ring
+was reverted and the cue that ships is ours and unconditional: **the row's edge takes the accent
+whenever that row's slider has the keyboard** - including when the track was clicked, which is the
+deliberate difference from Windows' convention, and the point of shipping our own.
+
+Boundaries: this machine has **one** active target (the AOC), so the internal-panel branch of the
+verifier was not exercised - the panel has been gone since EXP10, and `-SkipInternal` is a no-op here;
+`verify-slider.ps1` handles both anyway. The jump is WPF's rule, exercised only through a real click
+(no keystroke is synthesized anywhere, so "Arrow moves by 1" is asserted as what UI Automation
+reports - `SmallChange=1`, `LargeChange=10` - not by pressing it). The cue is asserted on the light
+palette only (the run pins `--theme light` so the accent and the unfilled track are known colours).
+The app is driven with `--no-schedule --no-tray`, so nothing here speaks to the tray or the night;
+the verifier writes the display through the same debounce a drag uses, and it drives the machine's
+real cursors and monitors. The standing `*-test.ps1` and `verify-*.ps1` suites were **not** re-run:
+this change touches one file's slider and one border, no model and no `build.ps1`, and the user asked
+to conclude without further changes (EXP12 set the same precedent).
 
 ## Learnings
-- `git checkout -b EXP13` off EXP12's tip - the branch this experiment lives on.
+- `IsMoveToPointEnabled = true` on a slider with the OS template: a track click lands on the press,
+  snapped to the tick and clamped, and a press on the thumb is still left to the drag. One line; no
+  template surgery. Use when a slider must be settable without hitting the thumb.
+- A WPF `FocusVisualStyle` is decided **at process start**: `KeyboardNavigation.AlwaysShowFocusVisual`
+  is latched from `SystemParameters.KeyboardCues`, and it is only drawn when that is true *or* the
+  keyboard is the most recent input device. Never verify one from outside, and never ship one as the
+  only cue - for a mouse user it is invisible.
+- `SystemParametersInfo(SPI_SETKEYBOARDCUES, 0, NULL, SPIF_SENDCHANGE)` hides the keyboard cues;
+  the same call with a `ref bool` FALSE reads back as still-true. Restore with the `NULL` form.
+- A baseline without touching the tree: `git show EXP12:src/Monitorn.App/Program.cs`, written over a
+  *copy* of `src\Monitorn.App` in temp, then that copy's `build.ps1`, then
+  `verify-slider.ps1 -Exe <that exe>`. Use when a change needs a measured "before".
+- A synthesized press goes where `WindowFromPoint` says: the app does **not** need to be foreground
+  (mouse input follows the cursor - only the keyboard needs it), and `SetFocus()` on the window element
+  does not move the keyboard off a control - focus a sibling (the gear) instead.
+- PowerShell aliases shadow functions: `Diff` resolves to `Compare-Object`, so `function Diff` is
+  silently ignored. Name helpers uniquely (`FrameDiff`).
+- The app locks its own `Monitorn.App.exe` while running, so `build.ps1` fails with CS0016 until it is
+  quit (tray -> Quit, which restores the displays; a kill does not). Check first:
+  `Get-CimInstance Win32_Process -Filter "Name='Monitorn.App.exe'"` shows the command line, which tells
+  a probe's leftover instance (seam arguments, nothing to restore) from the user's own launching.

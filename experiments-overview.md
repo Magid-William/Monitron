@@ -22,7 +22,7 @@ only the user declares the final status.
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
 falsified by prior art (Twinkle Tray already does it). Recommend **EXP02 = DDC/CI hardware
-probe + `Monitorn.Core` skeleton**.
+probe + `Monitron.Core` skeleton**.
 
 **EXP02:** `success`. Detection and reversible brightness control proven on this machine —
 external over DDC/CI (`dxva2`, VCP `0x10`), internal over WMI — built and run with only the
@@ -87,7 +87,7 @@ behind this window - then the tray shell + autostart that makes an overnight dim
 window open; real sunset/sunrise by location and per-monitor profiles after that.
 
 **EXP07:** `success` (user-declared). The follow-on EXP06 asked for: the six schedule settings
-(switch, strength, gradual fade, mode, turn-on, turn-off) now live in `%APPDATA%\Monitorn\settings.ini`,
+(switch, strength, gradual fade, mode, turn-on, turn-off) now live in `%APPDATA%\Monitron\settings.ini`,
 loaded at launch into the same object the window edits and the scheduler reads, and written on every
 real edit. `SettingsPersistence.cs` splits a pure `SettingsCodec` (text <-> model, writing *through
 the model's transitions*, so a corrupt `strength=999` is refused by the same rule the UI enforces)
@@ -218,13 +218,13 @@ location, then per-monitor profiles.
 recommendation for one experiment (the stored `theme=` preference still stands). `logo.svg`'s six
 paint values are one neon green (`#02DA96`), the user's colour: black came first (3.2:1 against this
 machine's 0.11-luminance taskbar, i.e. invisible there), then a mid grey (`#A0A0A0`, washed out on
-light), both rejected - and the pipeline already in the tree turned that SVG into `Monitorn.ico` with
+light), both rejected - and the pipeline already in the tree turned that SVG into `Monitron.ico` with
 nothing else changed: `icogen.ps1` wrote the nine frames (16/20/24/32/40/48/64 as DIB, 128/256 as
 PNG; 71197 bytes), `build.ps1` embedded them with `/win32icon:` and `/resource:`, and the app reads
 them for `Window.Icon` and the tray. A byte audit finds the container spec-correct and **all nine
 frames byte for byte inside the rebuilt exe** (245248 bytes), whose icon sampled at 256 px is
 (3,190,131) - the green - against (140,140,140) for the grey build before it; the app's own
-`--icon-report` says `resource=Monitorn.ico`, `frames=16,20,24,32,40,48,64,128,256`,
+`--icon-report` says `resource=Monitron.ico`, `frames=16,20,24,32,40,48,64,128,256`,
 `windowIcon=true`, `trayIcon=true`. `icon-test.ps1` is green (49 passed, 0 failed, including that the
 committed asset is exactly what `icogen` writes today), and the user confirmed the exe, the window and
 the tray by hand. **The experiment's real findings are about *seeing* the icon, not making it**:
@@ -266,5 +266,9 @@ the colours the pixels are read by), and the standing suites were not re-run at 
 (this touches one file's slider and one border, no model and no `build.ps1`). No promotion into
 `AGENTS.md`. Post-conclusion (the user's ask, same experiment): the hint paragraph under the schedule
 status ("Drag a slider to set a monitor...") was removed from `Program.cs` - no verifier reads it, so
-the run above stands. Recommend the standing steps: the stored `theme=` preference - the tray menu joins it -
+the run above stands. And the product was renamed **`Monitorn` -> `Monitron`** across code, scripts,
+docs and every record (the checkout folder `...\Apps\Monitorn\` keeps its name): the window, tray,
+exe, source folder, icon, namespace, `%APPDATA%\Monitron\settings.ini` and the Run value all changed,
+with the settings file and autostart entry migrated by hand; a fresh build and all eight headless
+suites are green (394 assertions, 0 failed). Recommend the standing steps: the stored `theme=` preference - the tray menu joins it -
 then real sunset/sunrise by location, then per-monitor profiles.

@@ -22,11 +22,11 @@ gamma/pixel dimming.
 1. **Twinkle Tray alone falsifies the hypothesis.** Free, mainstream, MIT, DDC/CI brightness
    scheduled by time of day per display.
 2. **The mechanism is settled:** serious tools use DDC/CI (`dxva2.dll`) for external monitors
-   and WMI for internal panels. Monitorn's planned design is the proven one.
+   and WMI for internal panels. Monitron's planned design is the proven one.
 3. **Backlight ≠ pixels.** f.lux / Night Light / DimScreen change the image; only DDC/CI/WMI
-   tools change the backlight. Monitorn is in the backlight family.
+   tools change the backlight. Monitron is in the backlight family.
 4. **Scheduling is where the paid walls are.** Monitorian gates it; Display Dimmer partly gates
-   it; Twinkle Tray gives it away. Monitorn's overnight-fade rule must therefore compete on
+   it; Twinkle Tray gives it away. Monitron's overnight-fade rule must therefore compete on
    *fit*, not on existence.
 
 ## Sources

@@ -6,7 +6,7 @@ nine frames, carried by the exe, the window and the tray.
 
 ## Hypothesis
 The look was never the problem; the icon was. With the mark's own paint set to one colour - no
-recolouring in the renderer - the generated `Monitorn.ico` is a proper icon: the nine frames Windows
+recolouring in the renderer - the generated `Monitron.ico` is a proper icon: the nine frames Windows
 asks for, reproducible from the committed SVG, and the very frames the exe carries, so
 `PrivateExtractIcons` on the built exe returns each of them byte for byte, and the shell and the app
 draw that asset on the exe, the window and the tray.
@@ -17,8 +17,8 @@ draw that asset on the exe, the window and the tray.
   hands the embedded asset to the window and the tray. `icogen.ps1` regenerates the committed asset;
   `build.ps1` embeds it with `/win32icon:` (Explorer, Alt-Tab, the exe's Properties) and
   `/resource:` (the window icon and the tray). No renderer on this machine and no download.
-- May touch: `logo.svg` (the six paint values only), `src/Monitorn.App/IconTests.cs` (the one
-  assertion that the logo is black), `src/Monitorn.App/Monitorn.ico`, this file,
+- May touch: `logo.svg` (the six paint values only), `src/Monitron.App/IconTests.cs` (the one
+  assertion that the logo is black), `src/Monitron.App/Monitron.ico`, this file,
   `experiments-overview.md`.
 - Off-limits: `logo.figcraft` (the design source, untouched - it still describes a black mark),
   the brightness/schedule/placement/theme paths, `src/probe`, an installer or code signing.
@@ -35,11 +35,11 @@ draw that asset on the exe, the window and the tray.
 ## Conclusion (findings)
 The hypothesis held, and the part that was ever wrong was never the frames. Changing the six paint
 values in `logo.svg` to `#02DA96` and running the pipeline unchanged produced a nine-frame
-`Monitorn.ico` (16/20/24/32/40/48/64 as DIB, 128/256 as PNG; 71197 bytes) that a byte audit finds
+`Monitron.ico` (16/20/24/32/40/48/64 as DIB, 128/256 as PNG; 71197 bytes) that a byte audit finds
 spec-correct - `ICONDIR` and entries, `biHeight = 2 x size`, 32bpp BI_RGB, bottom-up XOR, zeroed AND
 mask, 8-bit RGBA PNG frames - and all nine frames sit **byte for byte** inside the rebuilt
-`Monitorn.App.exe` (245248 bytes), which is what the app draws with: its own report says
-`resource=Monitorn.ico`, `frames=16,20,24,32,40,48,64,128,256`, `windowIcon=true`, `trayIcon=true`,
+`Monitron.App.exe` (245248 bytes), which is what the app draws with: its own report says
+`resource=Monitron.ico`, `frames=16,20,24,32,40,48,64,128,256`, `windowIcon=true`, `trayIcon=true`,
 and the exe's icon sampled at 256 px is now (3,190,131) - the green - against (140,140,140) for the
 grey build before it. `icon-test.ps1` is green (49 passed, 0 failed, including that the committed
 asset is exactly what `icogen` writes today) and the user confirmed the result on the real exe, tray
@@ -62,10 +62,10 @@ Recommend next: the standing steps - the stored `theme=` preference, then real s
 per-monitor profiles.
 
 ## Learnings
-- `pwsh -File src\Monitorn.App\icogen.ps1` regenerates `Monitorn.ico` from `logo.svg` (`-Png <dir>`
+- `pwsh -File src\Monitron.App\icogen.ps1` regenerates `Monitron.ico` from `logo.svg` (`-Png <dir>`
   also writes one PNG per frame - how a small size gets judged); `build.ps1` then embeds it with
   `/win32icon:` (Explorer, Alt-Tab, the exe's Properties) and `/resource:` (window and tray).
-- `pwsh -File src\Monitorn.App\icon-test.ps1` is the headless check after an SVG edit: it asserts the
+- `pwsh -File src\Monitron.App\icon-test.ps1` is the headless check after an SVG edit: it asserts the
   committed `.ico` is exactly what `icogen` writes today, so a stale or hand-edited asset fails.
 - To see a new icon: **quit the app, rebuild, start it again**. `csc` cannot write the exe while the
   app runs, and the tray icon is read once at startup from the exe the process came from. Explorer

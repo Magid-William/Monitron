@@ -18,16 +18,16 @@ DWM dark title bar is unavailable on this build.
 
 ## Methodology & blast radius
 - Method:
-  1. `src/Monitorn.App/Theme.cs` - a pure model, no WPF: `ThemePalette` (the colors as plain
+  1. `src/Monitron.App/Theme.cs` - a pure model, no WPF: `ThemePalette` (the colors as plain
      `0xAARRGGBB`, with `Light` *exactly* the palette the app has drawn so far) and `ThemeChoice`
      (the rule `(what Windows says, what the user asked for) -> Light|Dark`). Headless
      `theme-test.ps1`.
-  2. `src/Monitorn.App/Theming.cs` - `ThemeBrushes`: the palette as **mutable, shared**
+  2. `src/Monitron.App/Theming.cs` - `ThemeBrushes`: the palette as **mutable, shared**
      `SolidColorBrush` instances, so a theme switch repaints windows that are already built (the
      surface holds the scheduler's wiring) instead of rebuilding them. Plus one control template
      each for `Slider` (a `Track` named `PART_Track`), `CheckBox`, `RadioButton`, `Button` and
      `TextBox` (`PART_ContentHost`), which is what the OS-styled parts need.
-  3. `src/Monitorn.App/SystemTheme.cs` - read the OS app theme
+  3. `src/Monitron.App/SystemTheme.cs` - read the OS app theme
      (`HKCU\...\Themes\Personalize\AppsUseLightTheme`), follow it live (`WM_SETTINGCHANGE` with
      `ImmersiveColorSet` through an `HwndSource` hook), and darken the **non-client title bar**
      with `DwmSetWindowAttribute(20)`, asserted by reading the attribute back. `ThemeState` is the
@@ -51,7 +51,7 @@ DWM dark title bar is unavailable on this build.
   7. Regressions: `model-test` / `writer-test` / `schedule-test` / `persistence-test` and
      `verify-settings` / `verify-control` / `verify-schedule` / `verify-persistence`.
 - May touch: branch `EXP08` off `EXP07`; `experiments/EXP08/README.md`; the overview row;
-  `src/Monitorn.App/` (`Theme.cs`, `Theming.cs`, `SystemTheme.cs`, `ThemeReport.cs`,
+  `src/Monitron.App/` (`Theme.cs`, `Theming.cs`, `SystemTheme.cs`, `ThemeReport.cs`,
   `ThemeTests.cs`, `theme-test.ps1`, `verify-theme.ps1`, `Program.cs`, `SettingsWindow.cs`,
   `build.ps1`, and `verify-schedule.ps1`'s launch - it now uses a temp settings file, the same
   correction EXP07 made to `verify-settings.ps1`, because a persisted `gradualFade=false` in the
@@ -62,8 +62,8 @@ DWM dark title bar is unavailable on this build.
   the OS; a stored user preference is a later experiment); the registry is **read only**; anything
   outside `D:\Playground\Projects\Apps\Monitorn\`; downloads.
 - Escalation budget: every run pins `--theme`/`--os-theme` and writes into
-  `%TEMP%\monitorn-exp08\`, with `--settings-file` pointing at a temp file; the verifier asserts
-  the real `%APPDATA%\Monitorn\settings.ini` is unchanged (its content hash, whether or not it
+  `%TEMP%\monitron-exp08\`, with `--settings-file` pointing at a temp file; the verifier asserts
+  the real `%APPDATA%\Monitron\settings.ini` is unchanged (its content hash, whether or not it
   exists) and that no monitor value changed.
   The user's real Windows theme is never changed: the OS reading is injected through `--os-theme`,
   the same way the clock is injected.
@@ -91,7 +91,7 @@ been ignoring.
 
 | Pass | Command | Result |
 |---|---|---|
-| Build | `src\Monitorn.App\build.ps1` | `Monitorn.App.exe` from the in-box `csc`, **0 MB** (`Theme.cs`, `Theming.cs`, `SystemTheme.cs`, `ThemeReport.cs` added) |
+| Build | `src\Monitron.App\build.ps1` | `Monitron.App.exe` from the in-box `csc`, **0 MB** (`Theme.cs`, `Theming.cs`, `SystemTheme.cs`, `ThemeReport.cs` added) |
 | Machine | `theme-test.ps1` | **34 assertions, 0 failed**: both palettes, ten roles with no color shared between them, the auto/pinned rule, the parsing, the hex formatting |
 | End to end | `verify-theme.ps1` | **42 checks, 0 failed**: each theme rendered and sampled, the raw-vs-templated measurement, `auto` following the injected OS reading, a driven live switch, the DWM read-back, and no monitor or settings write |
 | Regression | `model-test` / `writer-test` / `schedule-test` / `persistence-test` | **38 / 19 / 114 / 42**, 0 failed |
@@ -146,7 +146,7 @@ Findings:
 - **Nothing else moved.** The re-templated slider still drives the monitor through UI Automation
   (11/11), a whole scripted night still fades 70 -> 60 and hands 70 back (25/25), the settings file
   still round-trips (27/27), and every theme run left the display and the user's real
-  `%APPDATA%\Monitorn\settings.ini` untouched (asserted by a content hash).
+  `%APPDATA%\Monitron\settings.ini` untouched (asserted by a content hash).
 
 Boundaries this run did not exercise:
 - **Only the two windows this app has.** There is no `ComboBox`, `ScrollBar`, `ListBox` or `Menu` in
@@ -208,10 +208,10 @@ then a stored `theme=` preference plus a switch in the settings window - small n
 and one `Changed` event exist - then real sunset/sunrise by location, then per-monitor profiles and
 identity that survives reconnect (`docs/prior-art/apis-and-identity.md`).
 
-Evidence: the commands above; the per-case reports and PNGs in `%TEMP%\monitorn-exp08\reports`.
+Evidence: the commands above; the per-case reports and PNGs in `%TEMP%\monitron-exp08\reports`.
 
 ## Learnings
-- `src\Monitorn.App\theme-test.ps1` (34, headless) and `src\Monitorn.App\verify-theme.ps1` (42, end
+- `src\Monitron.App\theme-test.ps1` (34, headless) and `src\Monitron.App\verify-theme.ps1` (42, end
   to end, needs `src\probe\probe.exe`) - run them whenever a color, the resolution rule, a control
   template or the report's probes change.
 - A brush used as a **`Setter` value inside a `ControlTemplate` is frozen when the template seals**;

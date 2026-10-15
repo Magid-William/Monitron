@@ -15,7 +15,7 @@ or a row cannot show name + slider + gear legibly (overlap, clipping, unusable a
 
 ## Methodology & blast radius
 - Method:
-  1. `src/Monitorn.App/` at the repo root: `Program.cs` — a WPF window written **code-only, no
+  1. `src/Monitron.App/` at the repo root: `Program.cs` — a WPF window written **code-only, no
      XAML** (so no BAML step, which keeps the build to the in-box `csc`) — plus `build.ps1`
      mirroring `src/probe/build.ps1`, referencing `PresentationFramework`, `PresentationCore` and
      `WindowsBase` from `...\Framework64\v4.0.30319\WPF\` and `System.Xaml` from the framework
@@ -31,7 +31,7 @@ or a row cannot show name + slider + gear legibly (overlap, clipping, unusable a
   6. DPI: embed `/win32manifest` declaring PerMonitorV2 awareness so the surface is crisp on a
      scaled display instead of bitmap-stretched.
 - May touch: branch `EXP03` (off `EXP02`); `experiments/EXP03/README.md`; the overview row; the
-  new `src/Monitorn.App/` (**experiment code lands at the repo root** per AGENTS; only the README
+  new `src/Monitron.App/` (**experiment code lands at the repo root** per AGENTS; only the README
   lives under `experiments/EXP03/`).
 - Off-limits: any DDC/CI or WMI call, any brightness write; `src/probe/**`; tray icon, autostart,
   scheduling, profiles; anything outside `D:\Playground\Projects\Apps\Monitorn\`; downloads
@@ -60,7 +60,7 @@ with exit code 0:
 
 | Pass | Command | Result |
 |---|---|---|
-| Build | `src\Monitorn.App\build.ps1` | `Monitorn.App.exe` from the in-box `csc`, **0 MB downloaded**, no XAML/BAML step |
+| Build | `src\Monitron.App\build.ps1` | `Monitron.App.exe` from the in-box `csc`, **0 MB downloaded**, no XAML/BAML step |
 | Default | `verify.ps1` | 3 rows: `AOC Q27G3G3R3` 47, `BOE BOE0764` 62, `Display 3` 50 |
 | One monitor | `verify.ps1 -AppArgs '--rows 1 --width 300'` | 300 DIP window, row still legible; name fits, slider usable, gear visible |
 | Many monitors | `verify.ps1 -AppArgs '--rows 5 --width 520'` | 5 rows stack cleanly, no clipping or overlap |
@@ -86,7 +86,7 @@ Findings:
   gear needs something behind it; and nothing here detects monitors or touches brightness.
 
 Evidence: PNGs of every pass above, plus a before/after pixel diff of the gear run, were captured
-with `src/Monitorn.App/verify.ps1` (which is the reproducible form of the table's commands).
+with `src/Monitron.App/verify.ps1` (which is the reproducible form of the table's commands).
 
 ## Conclusion (findings)
 **Recommendation: `success`** (2026-10-15). The user asked for the experiment to be concluded; the
@@ -128,12 +128,12 @@ Next, in the order the seams suggest: the scheduler FSM (injected clock + fake
 real detection into these rows, then the tray shell, then something behind the gear.
 
 ## Learnings
-- Build the UI with no toolchain install: `src\Monitorn.App\build.ps1` — in-box
+- Build the UI with no toolchain install: `src\Monitron.App\build.ps1` — in-box
   `...\Framework64\v4.0.30319\csc.exe`, `/target:winexe`, `/win32manifest:app.manifest`, and
   `/reference` to `WPF\{PresentationFramework,PresentationCore,WindowsBase}.dll` **plus
   `System.Xaml.dll` from the framework directory itself** (not the `WPF\` folder — it is the one
   reference the WPF folder does not hold). 0 MB, no BAML step.
-- Verify a UI by looking at it, not by describing it: `src\Monitorn.App\verify.ps1
+- Verify a UI by looking at it, not by describing it: `src\Monitron.App\verify.ps1
   [-AppArgs '--rows N --width PX'] [-Keys '{TAB}{RIGHT 10}']` — waits for the window, confirms it
   is really foreground, refuses a blank frame and re-shoots, writes the PNG, then closes the
   window and checks for exit code 0.

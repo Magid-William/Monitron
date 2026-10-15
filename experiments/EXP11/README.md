@@ -1,7 +1,7 @@
 # EXP11 - The tray shell: a notification-area icon, Run on Windows startup, and Quit
 
 ## Summary
-Give Monitorn a notification-area icon so it can run with no window open: a context menu with
+Give Monitron a notification-area icon so it can run with no window open: a context menu with
 Show/Hide, a checkable "Run on startup", and Quit. The schedule keeps dimming while the surface is
 hidden; Quit gives every display back.
 
@@ -23,7 +23,7 @@ Automation plus outside witnesses (the icon in the shell's notification area, th
   value name), `--tray-report <dir>` (the app's own reading).
 - The window's **close now hides** to the tray; **Quit** is the only exit, and it runs the same
   restore path the old `Closing` handler did. `--no-tray` keeps exit-on-close.
-- May touch: new `src/Monitorn.App/Tray.cs`, `TrayIcon.cs`, `AutoStart.cs`, `TrayTests.cs`,
+- May touch: new `src/Monitron.App/Tray.cs`, `TrayIcon.cs`, `AutoStart.cs`, `TrayTests.cs`,
   `tray-test.ps1`, `verify-tray.ps1`; edits to `Program.cs`, `build.ps1`, `Theming.cs` (a
   ContextMenu/MenuItem template so the menu follows the EXP08 palette), the existing verifiers (a
   `--no-tray` in the arg line where they close the window and expect exit), `experiments-overview.md`

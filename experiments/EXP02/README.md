@@ -1,7 +1,7 @@
 # EXP02 - Detect monitors and control their brightness (sampling spike)
 
 ## Summary
-Prove on this machine that Monitorn can enumerate connected monitors and read/write each
+Prove on this machine that Monitron can enumerate connected monitors and read/write each
 display's brightness — external panels over DDC/CI, internal over WMI — with reversible,
 logged writes, before any scheduler is built.
 
@@ -64,7 +64,7 @@ absent (a known hardware limitation).
   `QueryDisplayConfig` target id / PnP device path.
 
 ## Conclusion (findings)
-**Success (user-declared, 2026-10-15).** The hypothesis holds: Monitorn enumerates every
+**Success (user-declared, 2026-10-15).** The hypothesis holds: Monitron enumerates every
 connected display and reads/writes its brightness, reversibly and with read-back verification —
 external over DDC/CI (`dxva2.dll`, VCP `0x10`), internal over WMI. On this machine the external
 AOC `Q27G3G3R3` read 47 and was driven 47 → 27 → 47 (later set persistently to 50, then 30);

@@ -1,4 +1,4 @@
-# Prior art — Monitorn
+# Prior art — Monitron
 
 Research produced by **EXP01** (2026-10-14). Scope: Windows brightness-control tools and
 their scheduling; the API surface they build on; and how a monitor is identified across
@@ -10,7 +10,7 @@ user-defined overnight dimming schedule"* — is **falsified**. **Twinkle Tray**
 that, for free, per display. See [`tools.md`](tools.md).
 
 ## Thesis (revised)
-Monitorn is not a first-mover. Its value is *fit and form*:
+Monitron is not a first-mover. Its value is *fit and form*:
 
 1. **Native and light** — C#/WPF on .NET 8, no Electron/Node runtime (Twinkle Tray is
    Electron, ~200 MB installed).
@@ -27,6 +27,6 @@ Monitorn is not a first-mover. Its value is *fit and form*:
 
 ## Two families of "dimming" (used throughout)
 - **Backlight** — the monitor's real brightness, via DDC/CI (`dxva2.dll`) or WMI (internal
-  panels). This is what Monitorn changes.
+  panels). This is what Monitron changes.
 - **Pixel / gamma** — the image is darkened in the GPU/pipeline (`SetDeviceGammaRamp`,
   color temperature). f.lux and Windows Night Light are here; the backlight is untouched.

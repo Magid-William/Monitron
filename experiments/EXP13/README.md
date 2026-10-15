@@ -26,8 +26,8 @@ or focusing the slider that changes no pixel.
   it, with the cursor restored), witnessed from outside the app - the rendered pixels at the filled
   track and at the thumb's own centre, the row's value, the display's own reading (the EXP02 probe
   over DDC/CI), a thumb drag that must still work, and the facts a screen reader sees.
-- May touch: `src/Monitorn.App/Program.cs` (the row's slider and the row's edge), `Theming.cs` (a note
-  only, in the end), a new `src/Monitorn.App/verify-slider.ps1`, the EXP13 row in
+- May touch: `src/Monitron.App/Program.cs` (the row's slider and the row's edge), `Theming.cs` (a note
+  only, in the end), a new `src/Monitron.App/verify-slider.ps1`, the EXP13 row in
   `experiments-overview.md`, and the header comments naming this experiment.
 - Off-limits: the writer/debounce, the scheduler, settings/persistence, placement, the tray, the
   icon, `build.ps1` and every existing verifier - all untouched.
@@ -104,7 +104,34 @@ and it lived directly under the `NightLightStatus` line. Nothing else changed; n
 30/0 slider result above stands. The user judged it did not warrant its own experiment, so it is
 recorded here.
 
+**Post-conclusion change 2 (user's ask, same experiment): the product is renamed `Monitorn` ->
+`Monitron`.** Everything but the checkout folder changed: the window, tray tooltip and settings
+titles, the surface heading, the exe (`Monitron.App.exe`), the source folder (`src/Monitron.App/`),
+the icon (`Monitron.ico`), the namespace (`Monitron.App`), the per-user settings folder
+(`%APPDATA%\Monitron\settings.ini`), the Run registry value, the build and verify scripts and their
+title assertions, and the prose in `README.md`, `AGENTS.md`, `docs/prior-art/` and **every**
+experiment record. `D:\Playground\Projects\Apps\Monitorn\` keeps its name - renaming the checkout is
+outside git and would move the working directory. The machine side was migrated on this box so the
+running app kept its schedule: `settings.ini` copied into the new folder, and the `Monitorn` Run
+value replaced by `Monitron` pointing at the new exe (the old one had gone stale with the folder).
+Verified: a fresh `build.ps1`, all **eight** headless suites green (**394 assertions, 0 failed**),
+and the live window read through UI Automation says `Monitron` with the schedule applied
+(*"Night light: 32% until 9:00 AM"*). The end-to-end `verify-*.ps1` scripts were not re-run - the
+change is names and paths only, no behaviour. Two honest costs, both accepted: the past records now
+show the new name in paths that were run under the old one (e.g. a `git show EXP12:src/Monitron.App/...`
+baseline that then lived at `src/Monitorn.App/`), and a rename like this orphans the old
+`%APPDATA%` folder and the old Run value unless they are migrated by hand.
+
 ## Learnings
+- A repo-wide product rename: a byte-level `String.Replace` over every text file (a Latin1 round-trip
+  keeps the bytes exact; these files have no BOM), with the checkout path protected first
+  (`Apps\Monitorn` -> a placeholder -> back). 64 files, a symmetric 287/287 lines. Renaming the
+  source folder **works while its exe is running**; only the `build.ps1` output needs the app quit.
+  Use when a name changes across code, scripts and docs at once.
+- A rename that moves machine identity has two side effects to migrate by hand: `%APPDATA%\<old>`
+  (the settings file) and the `HKCU\...\Run` value named after the old name (which points at the
+  now-missing exe). Neither is touched by the app; do both, or the user silently loses the schedule
+  and keeps a broken autostart entry.
 - `IsMoveToPointEnabled = true` on a slider with the OS template: a track click lands on the press,
   snapped to the tick and clamped, and a press on the thumb is still left to the drag. One line; no
   template surgery. Use when a slider must be settable without hitting the thumb.
@@ -114,15 +141,15 @@ recorded here.
   only cue - for a mouse user it is invisible.
 - `SystemParametersInfo(SPI_SETKEYBOARDCUES, 0, NULL, SPIF_SENDCHANGE)` hides the keyboard cues;
   the same call with a `ref bool` FALSE reads back as still-true. Restore with the `NULL` form.
-- A baseline without touching the tree: `git show EXP12:src/Monitorn.App/Program.cs`, written over a
-  *copy* of `src\Monitorn.App` in temp, then that copy's `build.ps1`, then
+- A baseline without touching the tree: `git show EXP12:src/Monitron.App/Program.cs`, written over a
+  *copy* of `src\Monitron.App` in temp, then that copy's `build.ps1`, then
   `verify-slider.ps1 -Exe <that exe>`. Use when a change needs a measured "before".
 - A synthesized press goes where `WindowFromPoint` says: the app does **not** need to be foreground
   (mouse input follows the cursor - only the keyboard needs it), and `SetFocus()` on the window element
   does not move the keyboard off a control - focus a sibling (the gear) instead.
 - PowerShell aliases shadow functions: `Diff` resolves to `Compare-Object`, so `function Diff` is
   silently ignored. Name helpers uniquely (`FrameDiff`).
-- The app locks its own `Monitorn.App.exe` while running, so `build.ps1` fails with CS0016 until it is
+- The app locks its own `Monitron.App.exe` while running, so `build.ps1` fails with CS0016 until it is
   quit (tray -> Quit, which restores the displays; a kill does not). Check first:
-  `Get-CimInstance Win32_Process -Filter "Name='Monitorn.App.exe'"` shows the command line, which tells
+  `Get-CimInstance Win32_Process -Filter "Name='Monitron.App.exe'"` shows the command line, which tells
   a probe's leftover instance (seam arguments, nothing to restore) from the user's own launching.

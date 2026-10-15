@@ -1,4 +1,4 @@
-# Monitorn
+# Monitron
 
 A Windows tray app that controls the brightness of each connected monitor and **dims
 them on a schedule** — for example, fade down to a low level at 21:00 and restore the
@@ -8,7 +8,7 @@ previous brightness at 06:00.
 - Internal laptop panels: the Windows WMI brightness API.
 - A notification-area icon: **Show/Hide**, **Run on Windows startup**, and **Quit**; the schedule keeps
   running while the window is closed.
-- The app's own icon is the designed logo (`logo.svg`), generated into a nine-frame `Monitorn.ico` for
+- The app's own icon is the designed logo (`logo.svg`), generated into a nine-frame `Monitron.ico` for
   the exe, the window and the tray.
 - Planned: per-monitor profiles that survive unplug/reconnect.
 

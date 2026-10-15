@@ -19,4 +19,4 @@ desktop.ini
 src/probe/*.exe
 
 # EXP03 control surface build output
-src/Monitorn.App/*.exe
+src/Monitron.App/*.exe

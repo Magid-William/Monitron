@@ -17,7 +17,7 @@ enablement cannot be driven without a real clock or a UI automation harness.
 
 ## Methodology & blast radius
 - Method:
-  1. New `src/Monitorn.App/SettingsWindow.cs`, code-only (no XAML), reusing `Program.cs`'s
+  1. New `src/Monitron.App/SettingsWindow.cs`, code-only (no XAML), reusing `Program.cs`'s
      brushes/label style. `build.ps1` gains the second source file.
   2. Window contents, following the requested sketch: header **Schedule night light** with an
      enable checkbox; `Strength [38] %`; `[x] gradual fade`; then the two timing options -
@@ -32,7 +32,7 @@ enablement cannot be driven without a real clock or a UI automation harness.
      field, toggles fade, flips the mode and confirms the time fields enable/disable (screenshot
      diff), flips back, screenshots each pass, closes cleanly.
 - May touch: branch `EXP04` off `EXP03`; `experiments/EXP04/README.md`; the overview row; the
-  `src/Monitorn.App/` files named above. Experiment code lands at the repo root per AGENTS; only
+  `src/Monitron.App/` files named above. Experiment code lands at the repo root per AGENTS; only
   the README lives under `experiments/EXP04/`.
 - Off-limits: any DDC/CI, WMI or brightness write; persistence (registry or file); real
   sunset/sunrise (no geolocation, no network, no timezone math); tray icon and autostart;
@@ -68,14 +68,14 @@ Built and driven on this machine (Windows 11, 125 % display scaling), every run 
 
 | Pass | Command | Result |
 |---|---|---|
-| Build | `src\Monitorn.App\build.ps1` | `Monitorn.App.exe` from the in-box `csc`, **0 MB downloaded**, no XAML/BAML step |
-| Model | `src\Monitorn.App\model-test.ps1` | **38 assertions, 0 failed** - 12-hour parsing, midnight/noon, refusal of `101`/`999`/`abc`/empty, and the mode coupling, all driven through the model's own transitions |
-| Window | `src\Monitorn.App\verify-settings.ps1` | **30 UIA checks, 0 failed**: every control the sketch asks for is in the tree (15 text nodes, 2 checkboxes, 2 radios, 5 numeric fields, 2 AM/PM toggles), the default values, both options, and every driven change; 5 screenshots |
+| Build | `src\Monitron.App\build.ps1` | `Monitron.App.exe` from the in-box `csc`, **0 MB downloaded**, no XAML/BAML step |
+| Model | `src\Monitron.App\model-test.ps1` | **38 assertions, 0 failed** - 12-hour parsing, midnight/noon, refusal of `101`/`999`/`abc`/empty, and the mode coupling, all driven through the model's own transitions |
+| Window | `src\Monitron.App\verify-settings.ps1` | **30 UIA checks, 0 failed**: every control the sketch asks for is in the tree (15 text nodes, 2 checkboxes, 2 radios, 5 numeric fields, 2 AM/PM toggles), the default values, both options, and every driven change; 5 screenshots |
 | Coupling | in the same run | selecting *Sunset to sunrise* reports all four time fields disabled and the times still `5:00`/`9:00`; *Set hours* makes them live again |
 | Gating | in the same run | the **On** switch off => **0 of 10** body controls live, the switch itself still usable; back on => all 5 fields live |
 | Strength | in the same run | set `55` => stuck; set `999` => refused, field reverted to `55` |
 | AM/PM | in the same run | the turn-on toggle flips `PM -> AM` (two `AM`, no `PM`) and back, numbers untouched |
-| Gear, keyboard | `verify.ps1 -AppArgs '--rows 1' -Keys '{TAB}{TAB}{ENTER}'` | tab to the gear, press it -> foreground becomes `Monitorn settings` |
+| Gear, keyboard | `verify.ps1 -AppArgs '--rows 1' -Keys '{TAB}{TAB}{ENTER}'` | tab to the gear, press it -> foreground becomes `Monitron settings` |
 | Gear, automation | `verify-settings.ps1 -AppArgs '--rows 1' -FromGear` | **6 checks, 0 failed**: named gear found, invoking it opens the schedule, closing it leaves the surface alive, invoking again reopens it |
 | Surface regression | `verify.ps1` | EXP03's surface still renders (**500x485** at 125 %) and exits 0 |
 
@@ -108,7 +108,7 @@ What this deliberately does not settle - the boundary of the experiment:
 - Unchanged repo facts, still untouched: `README.md` states **.NET 8** while everything here builds
   on net48, and `src/probe/Probe.cs:107` still lacks its method name.
 
-Evidence: `%TEMP%\monitorn-exp04\` holds `01-default`, `02-sunset`, `03-strength-55`, `04-off`,
+Evidence: `%TEMP%\monitron-exp04\` holds `01-default`, `02-sunset`, `03-strength-55`, `04-off`,
 `05-final` and `06-from-gear`. The reproducible form is the two commands above.
 
 ## Conclusion (findings)
@@ -150,16 +150,16 @@ Next, in the order the seams suggest: the **scheduler FSM** (injected clock, fak
 the shape of the settings it will read; then feeding real detection into the EXP03 rows, then the
 tray shell, then persistence behind a window like this one.
 
-Evidence: `%TEMP%\monitorn-exp04\` - `01-default`, `02-sunset`, `03-strength-55`, `04-off`,
+Evidence: `%TEMP%\monitron-exp04\` - `01-default`, `02-sunset`, `03-strength-55`, `04-off`,
 `05-final`, `06-from-gear`. Reproducible form: `model-test.ps1`, `verify-settings.ps1`,
 `verify-settings.ps1 -AppArgs '--rows 1' -FromGear`, `verify.ps1`.
 
 ## Learnings
-- `src\Monitorn.App\model-test.ps1` - builds and runs the headless `ScheduleSettings` assertions
+- `src\Monitron.App\model-test.ps1` - builds and runs the headless `ScheduleSettings` assertions
   with the in-box `csc` (`/target:exe`; a winexe cannot print). Use it whenever machine logic must
   be driven without a UI, which is every experiment here.
-- `src\Monitorn.App\verify-settings.ps1 [-AppArgs '--rows 1'] [-FromGear]` - drives the settings
-  window through UI Automation, asserts what it exposes, writes shots to `%TEMP%\monitorn-exp04`
+- `src\Monitron.App\verify-settings.ps1 [-AppArgs '--rows 1'] [-FromGear]` - drives the settings
+  window through UI Automation, asserts what it exposes, writes shots to `%TEMP%\monitron-exp04`
   and exits non-zero on a failed check. Use it instead of describing a UI.
 - Drive WPF controls through their UIA patterns (`TogglePattern`, `SelectionItemPattern`,
   `InvokePattern`, `ValuePattern`), never `SendKeys`: patterns need no OS foreground, and keystrokes

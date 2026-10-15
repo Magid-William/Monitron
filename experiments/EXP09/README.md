@@ -24,22 +24,22 @@ area changes.
 
 ## Methodology & blast radius
 - Method:
-  1. `src/Monitorn.App/Placement.cs` - a **pure model, no WPF**: `TaskbarEdge`
+  1. `src/Monitron.App/Placement.cs` - a **pure model, no WPF**: `TaskbarEdge`
      (`Bottom|Top|Left|Right`), `Dips.FromPixels`/`ToPixels`, `PlacementGeometry.EdgeOf` (which side
      of a monitor a taskbar or a shrunken work area is docked on), and
      `PlacementGeometry.For(workArea, edge, width, height, margin)` - hug the corner the notification
      area sits in (bottom->bottom-right, top->top-right, left->bottom-left, right->bottom-right),
      then clamp so the box never crosses the work area's top/left. `PlacementTarget.From(monitor,
      workArea, taskbar, dpi)` is the pure parse of one OS reading. Headless `position-test.ps1`.
-  2. `src/Monitorn.App/SystemPlacement.cs` - the thin OS read: `MonitorFromWindow` (the window's own
+  2. `src/Monitron.App/SystemPlacement.cs` - the thin OS read: `MonitorFromWindow` (the window's own
      monitor, `MONITOR_DEFAULTTONEAREST` - the monitor it was launched on, as today), `GetMonitorInfo`
      (`rcMonitor`, `rcWork`), `GetDpiForMonitor`, and the taskbar's own rectangle from
      `Shell_TrayWnd`. A `PlacementReading` is what the OS said; a scripted reading stands in for it.
-  3. `src/Monitorn.App/PlacementApp.cs` - `Place.Attach(window, read, margin)`: place once the window
+  3. `src/Monitron.App/PlacementApp.cs` - `Place.Attach(window, read, margin)`: place once the window
      has a handle and again on `Loaded` and on `SizeChanged` (the `SizeToContent` trap), and re-place
      on `WM_SETTINGCHANGE` / `WM_DISPLAYCHANGE` / `WM_DPICHANGED`; plus `Place.Clamp(window)` for the
      settings window, which keeps `CenterOwner` but must not hang off the screen.
-  4. `src/Monitorn.App/Program.cs` / `SettingsWindow.cs` - the surface is placed after layout (never
+  4. `src/Monitron.App/Program.cs` / `SettingsWindow.cs` - the surface is placed after layout (never
      the settings window, which keeps its owner-centred rule and only gets clamped). Verification
      seams: `--no-place` (the pre-fix baseline the change is measured against), `--place-margin N`,
      `--place-edge bottom|top|left|right`, `--place-dpi N`, `--place-work L,T,R,B` (stand in for the
@@ -63,7 +63,7 @@ area changes.
   7. Regressions: `model-test` / `writer-test` / `schedule-test` / `persistence-test` and
      `verify-control` / `verify-settings` / `verify-schedule` / `verify-persistence` / `verify-theme`.
 - May touch: branch `EXP09` off `EXP08`; `experiments/EXP09/README.md`; the overview row;
-  `src/Monitorn.App/` (`Placement.cs`, `SystemPlacement.cs`, `PlacementApp.cs`, `PlacementTests.cs`,
+  `src/Monitron.App/` (`Placement.cs`, `SystemPlacement.cs`, `PlacementApp.cs`, `PlacementTests.cs`,
   `position-test.ps1`, `verify-position.ps1`, `Program.cs`, `SettingsWindow.cs`, `build.ps1`).
 - Off-limits: **any monitor write** (the verifier runs `--no-schedule`); DDC/CI and WMI; the theme;
   the schedule machine and its timings; the `settings.ini` format; the tray icon, autostart,
@@ -71,7 +71,7 @@ area changes.
   per-monitor profiles; the registry is **read only**; anything outside
   `D:\Playground\Projects\Apps\Monitorn\`; downloads.
 - Escalation budget: every run pins `--no-schedule` and `--settings-file <temp>` and writes into
-  `%TEMP%\monitorn-exp09\`; the verifier asserts the real `%APPDATA%\Monitorn\settings.ini` is
+  `%TEMP%\monitron-exp09\`; the verifier asserts the real `%APPDATA%\Monitron\settings.ini` is
   unchanged (content hash, whether or not it exists) and that no monitor value changed. **The user's
   real taskbar is never moved and the real display layout is never changed**: the edge, the DPI and
   the work area are injected through the seams, the way the clock and the OS theme are injected.
@@ -106,7 +106,7 @@ Built and driven on this machine (Windows 11 25H2, build 26200; two displays, bo
 
 | Pass | Command | Result |
 |---|---|---|
-| Build | `src\Monitorn.App\build.ps1` | `Monitorn.App.exe` from the in-box `csc`, **0 MB** (`Placement.cs`, `SystemPlacement.cs`, `PlacementApp.cs` added) |
+| Build | `src\Monitron.App\build.ps1` | `Monitron.App.exe` from the in-box `csc`, **0 MB** (`Placement.cs`, `SystemPlacement.cs`, `PlacementApp.cs` added) |
 | Machine | `position-test.ps1` | **63 assertions, 0 failed**: both of this machine's displays as fixtures, the four edges from the work area and from the taskbar's own rectangle, the corner each implies, the clamp, the negative-origin arithmetic, the px<->DIP conversion |
 | End to end | `verify-position.ps1` | **60 checks, 0 failed**: the placed window against UI Automation, against Win32, against the app's own report, the `--no-place` baseline, a work-area change while it runs, a 40 DIP margin, a top taskbar, a 96 dpi reading, the settings clamp, and the second display's own work area and taskbar |
 | Regression | `verify-settings.ps1` / `verify-persistence.ps1` / `verify-theme.ps1` | **30 / 27 / 42**, 0 failed |
@@ -205,7 +205,7 @@ What this settles:
   measured both ways: a no-op at the default 400 DIP surface, and the fix when the settings window is
   wider than the surface (28 px off the screen otherwise).
 - **Nothing else moved.** 38 / 19 / 114 / 42 / 34 headless and 30 / 27 / 42 end to end pass; every run
-  left the display at 57 and the user's real `%APPDATA%\Monitorn\settings.ini` untouched.
+  left the display at 57 and the user's real `%APPDATA%\Monitron\settings.ini` untouched.
 
 What it deliberately does not settle - the boundary:
 - **Only the bottom taskbar is real on this machine.** All four edges are in the pure model, and the
@@ -227,7 +227,7 @@ overview's standing step, the **tray shell + autostart** - the corner this exper
 geometry that shell opens into - then a stored `theme=` preference plus a switch, real
 sunset/sunrise, and per-monitor profiles.
 
-Evidence: the commands above; the reports and the corner screenshots in `%TEMP%\monitorn-exp09`.
+Evidence: the commands above; the reports and the corner screenshots in `%TEMP%\monitron-exp09`.
 
 ## Learnings
 - Place a flyout with `MonitorFromWindow` + `GetMonitorInfo` (`rcMonitor`, `rcWork`) +

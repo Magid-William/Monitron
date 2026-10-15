@@ -18,14 +18,14 @@ verifier points elsewhere; or the model touches the store when a value was refus
 
 ## Methodology & blast radius
 - Method:
-  1. `src/Monitorn.App/SettingsPersistence.cs`:
+  1. `src/Monitron.App/SettingsPersistence.cs`:
      * `SettingsCodec` - pure `Serialize(ScheduleSettings)` / `TryParse(string, ScheduleSettings)`.
        It writes *through the model's own transitions* (`TrySetStrength`, `TrySetTurnOn/Off`,
        `SetEnabled`, `ToggleGradualFade`, `SetMode`), so validation stays in one place - a
        `strength=999` line leaves the default untouched. Format: `;` comments, `version=1`, then
        `enabled`, `strength`, `gradualFade`, `mode`, `turnOn`/`turnOff` as 24-hour `HH:mm`
        (reusing `ScheduleSettings.TryParseClock`). Culture-invariant; unknown keys ignored.
-     * `SettingsStore` - resolves the path (`%APPDATA%\Monitorn\settings.ini`), reads tolerantly,
+     * `SettingsStore` - resolves the path (`%APPDATA%\Monitron\settings.ini`), reads tolerantly,
        writes atomically (temp file, then replace), and reports a failure without throwing at the
        caller.
   2. `ScheduleSettings.cs`: one `Changed` event raised by each transition, and only when a value was
@@ -41,21 +41,21 @@ verifier points elsewhere; or the model touches the store when a value was refus
      `verify-control` / `verify-schedule`. `verify-settings.ps1` now points at a temp file too, so
      driving it cannot touch the user's settings.
 - May touch: branch `EXP07` off `EXP06`; `experiments/EXP07/README.md`; the overview row;
-  `src/Monitorn.App/` (`SettingsPersistence.cs`, `SettingsPersistenceTests.cs`,
+  `src/Monitron.App/` (`SettingsPersistence.cs`, `SettingsPersistenceTests.cs`,
   `persistence-test.ps1`, `verify-persistence.ps1`, `Program.cs`, `ScheduleSettings.cs`,
   `SettingsWindow.cs`, `build.ps1`, and `verify-settings.ps1`'s default args).
 - Off-limits: the registry; per-monitor profiles and monitor identity across reconnect
   (`docs/prior-art/apis-and-identity.md` is a later experiment); tray shell and autostart; real
   sunset/sunrise by location; VCP `0x60`/`0xD6`; `src/probe/**` beyond running it read-only;
   anything outside `D:\Playground\Projects\Apps\Monitorn\`; downloads.
-- Escalation budget: every verification run points at a file under `%TEMP%\monitorn-exp07\`, and the
-  verifier asserts the real `%APPDATA%\Monitorn\settings.ini` was not created during the run. No
+- Escalation budget: every verification run points at a file under `%TEMP%\monitron-exp07\`, and the
+  verifier asserts the real `%APPDATA%\Monitron\settings.ini` was not created during the run. No
   monitor write beyond what EXP06 already does; the display ends at its original value on every path.
 
 ## Open questions (proposed defaults adopted unless the user says otherwise)
 - [x] **What is persisted** - the six user settings, not per-display runtime state (day baseline,
       override). *Assumption: a killed-mid-night restore needs monitor identity, its own experiment.*
-- [x] **Where** - `%APPDATA%\Monitorn\settings.ini` per user, not `HKCU` and not portable. *Assumption:
+- [x] **Where** - `%APPDATA%\Monitron\settings.ini` per user, not `HKCU` and not portable. *Assumption:
       the overview already calls it "a file behind this window"; a file is inspectable and drivable.*
 - [x] **Format** - hand-rolled `key=value`, unknown keys ignored, `version=1`. *Assumption: no library
       may be downloaded and the in-box compiler has no serializer.*
@@ -72,13 +72,13 @@ verifier points elsewhere; or the model touches the store when a value was refus
 
 ## Results (run 2026-10-15)
 Built and driven on this machine (Windows 11, the AOC `Q27G3G3R3` over DDC/CI). Every run used a
-temp settings file; the real `%APPDATA%\Monitorn\settings.ini` was never created (it is absent).
+temp settings file; the real `%APPDATA%\Monitron\settings.ini` was never created (it is absent).
 
 | Pass | Command | Result |
 |---|---|---|
-| Build | `src\Monitorn.App\build.ps1` | `Monitorn.App.exe` from the in-box `csc`, **0 MB** (`SettingsPersistence.cs` added to the source list) |
-| Machine | `src\Monitorn.App\persistence-test.ps1` | **42 assertions, 0 failed** - round trip of every field, a missing file, partial/corrupt/unknown-key files, a refused `strength=999`, an unwritable path, and the `Changed` event (fires on a real edit, not on a refused one or a no-op) |
-| End to end | `src\Monitorn.App\verify-persistence.ps1` | **27 checks, 0 failed** - a first run shows the defaults and writes nothing; driving strength to 55 and gradual fade off writes `strength=55`/`gradualFade=false`; a restart shows 55 again and does **not** rewrite the file (hash unchanged); a corrupt file starts on the defaults; **the surface's own gear writes the same file and a fresh surface shows 42**; the real file is untouched |
+| Build | `src\Monitron.App\build.ps1` | `Monitron.App.exe` from the in-box `csc`, **0 MB** (`SettingsPersistence.cs` added to the source list) |
+| Machine | `src\Monitron.App\persistence-test.ps1` | **42 assertions, 0 failed** - round trip of every field, a missing file, partial/corrupt/unknown-key files, a refused `strength=999`, an unwritable path, and the `Changed` event (fires on a real edit, not on a refused one or a no-op) |
+| End to end | `src\Monitron.App\verify-persistence.ps1` | **27 checks, 0 failed** - a first run shows the defaults and writes nothing; driving strength to 55 and gradual fade off writes `strength=55`/`gradualFade=false`; a restart shows 55 again and does **not** rewrite the file (hash unchanged); a corrupt file starts on the defaults; **the surface's own gear writes the same file and a fresh surface shows 42**; the real file is untouched |
 | Regression | `model-test` / `writer-test` / `schedule-test` | **38 / 19 / 114**, 0 failed |
 | Regression | `verify-settings.ps1` | **30 checks, 0 failed** - now on a temp file, which also makes its default-value assertions deterministic |
 | Regression | `verify-control.ps1 -AppArgs '--no-schedule'` | **11 checks, 0 failed**: the slider still drives the monitor (probe following) |
@@ -116,7 +116,7 @@ Boundaries this run did not exercise:
 
 ## Conclusion (findings)
 **`success`** (2026-10-15, user-declared). The user asked for the schedule to survive; this is it -
-the six settings the window edits persist to `%APPDATA%\Monitorn\settings.ini`, are read back at
+the six settings the window edits persist to `%APPDATA%\Monitron\settings.ini`, are read back at
 launch into the same object the scheduler reads, and are written on every real edit.
 
 What this settles:
@@ -148,17 +148,17 @@ location, then per-monitor profiles and identity that survives reconnect
 (`docs/prior-art/apis-and-identity.md`).
 
 Evidence: the three commands above - `persistence-test.ps1`, `verify-persistence.ps1` and the
-regression set; shots in `%TEMP%\monitorn-exp07\`.
+regression set; shots in `%TEMP%\monitron-exp07\`.
 
 ## Learnings
-- `src\Monitorn.App\persistence-test.ps1` and `verify-persistence.ps1` - the headless and the
+- `src\Monitron.App\persistence-test.ps1` and `verify-persistence.ps1` - the headless and the
   end-to-end pass over the settings file (round trip, missing/corrupt/partial, the `Changed` hook,
   and a real restart). Run them whenever the format, a key or the hook changes; the verifier must
   never be handed the real `%APPDATA%` path (it asserts that file is unchanged).
 - Write a settings codec *through the model's own transitions* (`TrySetStrength`, `TrySetTurnOn/...`):
   validation stays in one place, so a corrupt file is refused by the same rules the UI enforces and
   the codec needs no knowledge of the ranges.
-- `SettingsStore.DefaultPath()` = `%APPDATA%\Monitorn\settings.ini`; a save is `File.WriteAllText` to
+- `SettingsStore.DefaultPath()` = `%APPDATA%\Monitron\settings.ini`; a save is `File.WriteAllText` to
   `<file>.tmp` then `File.Replace` (or `File.Move` when the file is new). A failed read or write is
   reported, never thrown. `Changed` must not fire on a refused value or a no-op set, or the window's
   own re-render (which re-assigns the value it already has) would write the file.

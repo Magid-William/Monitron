@@ -16,7 +16,7 @@ back.
 display; driving one row does not reach that display, or disturbs another row; the scripted night
 misses or double-writes a display; a manual move on one row ends the schedule for another, or is
 undone for its own; either verifier still cannot run to completion here; or a run leaves any display
-off its original value or touches the user's real `%APPDATA%\Monitorn\settings.ini`.
+off its original value or touches the user's real `%APPDATA%\Monitron\settings.ini`.
 
 ## Methodology & blast radius
 - Method:
@@ -45,20 +45,20 @@ off its original value or touches the user's real `%APPDATA%\Monitorn\settings.i
      manual move on the DDC row, that row keeps the user's value **while the panel row is still held
      at its strength** - overrides are per display.
   4. **Budgets kept.** Both scripts keep their shape: `--no-schedule` for the control pass, a temp
-     `--settings-file`, shots and reports under `%TEMP%\monitorn-exp10\`, the real settings file's
+     `--settings-file`, shots and reports under `%TEMP%\monitron-exp10\`, the real settings file's
      content hash asserted unchanged whether or not it exists, and - new - the assertion that every
      display is back at its original value, DDC by probe and panel by CIM.
   5. **Tests / regressions.** The relaxed end-to-end pair, plus `model-test` / `writer-test` /
      `schedule-test` / `persistence-test` / `theme-test` / `position-test` and `verify-settings` /
      `verify-persistence` / `verify-theme` / `verify-position`.
 - May touch: branch `EXP10` off `EXP09` (tip `d3fc481`); `experiments/EXP10/README.md`; the overview
-  row; `src/Monitorn.App/verify-control.ps1`, `verify-schedule.ps1`, and `Program.cs` (the two
+  row; `src/Monitron.App/verify-control.ps1`, `verify-schedule.ps1`, and `Program.cs` (the two
   automation-id lines only).
 - Off-limits: the schedule machine and its timings; the placement; the theme; the `settings.ini`
   format; the app's visible behaviour; the tray icon, autostart, z-order and activation (the
   standing next step, now EXP11); per-monitor profiles; the registry is **read only**; anything
   outside `D:\Playground\Projects\Apps\Monitorn\`; downloads.
-- Escalation budget: every run pins a temp settings file and writes into `%TEMP%\monitorn-exp10\`;
+- Escalation budget: every run pins a temp settings file and writes into `%TEMP%\monitron-exp10\`;
   both displays are restored and asserted back at their original values, and the user's real
   `settings.ini` is asserted unchanged. **New since EXP09: the runs deliberately write to the
   internal panel too**, so the user's own screen dims briefly during a run (the user's call, taken at
@@ -82,7 +82,7 @@ off its original value or touches the user's real `%APPDATA%\Monitorn\settings.i
       finding, not worked around. *Assumption.*
 - [x] **Factor the duplicated helper blocks into a shared file?** - no: keep the deliberate
       per-experiment duplication, minimal blast radius. *Assumption.*
-- [x] **Evidence directory** - `%TEMP%\monitorn-exp10\`: the shots and both verifiers' console
+- [x] **Evidence directory** - `%TEMP%\monitron-exp10\`: the shots and both verifiers' console
       output. *Assumption.*
 
 ## Results (run 2026-10-15)
@@ -90,7 +90,7 @@ Built and driven on this machine (Windows 11 25H2, build 26200; two displays, bo
 
 | Pass | Command | Result |
 |---|---|---|
-| Build | `src\Monitorn.App\build.ps1` | `Monitorn.App.exe` from the in-box `csc`, **0 MB** (`Program.cs`: the two automation-id lines only) |
+| Build | `src\Monitron.App\build.ps1` | `Monitron.App.exe` from the in-box `csc`, **0 MB** (`Program.cs`: the two automation-id lines only) |
 | End to end | `verify-control.ps1` | **28 checks, 0 failed** - both rows bound, both driven away and back, each against its own witness; `-SkipInternal` also run: **22 checks, 0 failed** |
 | End to end | `verify-schedule.ps1` | **35 checks, 0 failed** - a scripted night (strength 47) witnessed on both displays, per-display override, both restored |
 | Regression | `verify-settings` / `verify-persistence` / `verify-theme` / `verify-position` | **30 / 27 / 42 / 60**, 0 failed |
@@ -176,7 +176,7 @@ What this settles:
   and the panel ramped back to its own 67 at turn-off, and both at their originals after close.
 - **Nothing else moved.** 28 / 35 end to end (22 with `-SkipInternal`) and 38 / 19 / 114 / 42 / 34 / 63
   headless, 30 / 27 / 42 / 60 end to end, all passing; every run left the real
-  `%APPDATA%\Monitorn\settings.ini` untouched and every display at its own value.
+  `%APPDATA%\Monitron\settings.ini` untouched and every display at its own value.
 - **It was worth relaxing rather than asserting once.** Driving it found the two defects the code did
   not show: a reused `$p` loop variable clobbered the process object (the app was never asked to
   close, and a scripted night was left running on the desktop), and a non-overridden display is
@@ -207,7 +207,7 @@ this experiment restored; then a stored `theme=` preference plus a switch, real 
 per-monitor profiles.
 
 Evidence: the commands above; the console output of both verifiers and the shots in
-`%TEMP%\monitorn-exp10\`.
+`%TEMP%\monitron-exp10\`.
 
 ## Learnings
 - Witness a row without a device-level probe: `Get-CimInstance -Namespace root/wmi -ClassName

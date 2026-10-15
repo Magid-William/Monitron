@@ -1,6 +1,6 @@
 # Prior art — APIs & monitor identity
 
-Reference for how Monitorn will actually control brightness and remember monitors. Gathered
+Reference for how Monitron will actually control brightness and remember monitors. Gathered
 in EXP01; the concrete probe of *this* machine's monitors is EXP02.
 
 ## 1. External monitors — DDC/CI over `dxva2.dll`
@@ -27,7 +27,7 @@ Not DDC/CI. Use WMI `root\wmi` → `WmiMonitorBrightness` (get) and
 `WmiMonitorBrightnessMethods.WmiSetBrightness` (set), or the Windows power/brightness API.
 Monitorian treats these as a separate path.
 
-## 3. Pixel / gamma dimming (context, not Monitorn's path)
+## 3. Pixel / gamma dimming (context, not Monitron's path)
 `SetDeviceGammaRamp` darkens the image — no backlight change, works even without DDC/CI, but
 is bypassed by HDR. This is f.lux / Night Light / DimScreen territory.
 

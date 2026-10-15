@@ -10,7 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
-namespace Monitorn.Probe
+namespace Monitron.Probe
 {
     internal static class Program
     {
@@ -30,7 +30,7 @@ namespace Monitorn.Probe
             Ddc.Force = force;
             Ddc.Set = set;
 
-            Console.WriteLine("Monitorn EXP02 probe  clr=" + Environment.Version + "  64bit=" + (IntPtr.Size == 8));
+            Console.WriteLine("Monitron EXP02 probe  clr=" + Environment.Version + "  64bit=" + (IntPtr.Size == 8));
             Console.WriteLine();
             Console.WriteLine("=== Active display topology (QueryDisplayConfig) ===");
             Topology.Dump();

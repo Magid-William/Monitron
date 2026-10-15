@@ -21,7 +21,7 @@ by the schedule; or closing the app leaves a display dimmed.
 
 ## Methodology & blast radius
 - Method:
-  1. `src/Monitorn.App/Schedule.cs`: `NightLightScheduler` - pure state plus transitions, no WPF, no
+  1. `src/Monitron.App/Schedule.cs`: `NightLightScheduler` - pure state plus transitions, no WPF, no
      P/Invoke, no timer (so it compiles into the headless test, like `Brightness.cs`). Phase is
      derived from the clock (`Day | FadingIn | Night | FadingOut | Off | Inert`) with a **wrap-aware**
      window; per display a captured day baseline and an override flag; `Advance()` returns the writes
@@ -31,7 +31,7 @@ by the schedule; or closing the app leaves a display dimmed.
   2. `ScheduleSettings.ResolvedWindow` / `TryParseClock`: the window the scheduler uses (sunset mode
      without a location resolves to turn-on == turn-off, hence inert - exactly EXP04's placeholder)
      and the 24-hour text the verification seams need.
-  3. `src/Monitorn.App/ScheduleTests.cs` + `schedule-test.ps1`: the machine driven by a clock that
+  3. `src/Monitron.App/ScheduleTests.cs` + `schedule-test.ps1`: the machine driven by a clock that
      only moves when the test says so - no sleeping, no hardware, no framework.
   4. `Program.cs`: one `ScheduleSettings` shared by the settings window and the scheduler; the tick
      calls `scheduler.Advance()` -> `writer.Request(...)` -> `writer.Advance()`; a status line on the
@@ -46,7 +46,7 @@ by the schedule; or closing the app leaves a display dimmed.
      follows the fade to the strength, holds, is **not** undone by the schedule after a manual move,
      returns to the original at turn-off, and is left at the original on close).
 - May touch: branch `EXP06` off `EXP05`; `experiments/EXP06/README.md`; the overview row;
-  `src/Monitorn.App/` (`Schedule.cs`, `ScheduleTests.cs`, `schedule-test.ps1`, `verify-schedule.ps1`,
+  `src/Monitron.App/` (`Schedule.cs`, `ScheduleTests.cs`, `schedule-test.ps1`, `verify-schedule.ps1`,
   `Program.cs`, `ScheduleSettings.cs`, `SettingsWindow.cs`, `build.ps1`).
 - Off-limits: VCP `0x60` (input) and `0xD6` (power) and the DDC/CI capabilities string; persistence
   (no registry, no file - the schedule is in memory only); real sunset/sunrise (no location, no
@@ -84,9 +84,9 @@ cleanly:
 
 | Pass | Command | Result |
 |---|---|---|
-| Build | `src\Monitorn.App\build.ps1` | `Monitorn.App.exe` from the in-box `csc`, **0 MB** (`Schedule.cs` added to the source list) |
-| Machine | `src\Monitorn.App\schedule-test.ps1` | **114 assertions, 0 failed** - a clock the test moves drives day -> fade -> night -> fade -> restore, the wrap across midnight, the override, the switch, sunset inertness, per-display ranges, and that a whole night costs at most `fade/step` writes each way |
-| End to end | `src\Monitorn.App\verify-schedule.ps1` | **24 checks, 0 failed** - a scripted night (`--now`/`--rate 30`) on the real display: the probe watched the fade **41 -> 40 -> 37 -> 35 -> 33 -> 31**, the night held 31, a manual move to 41 was **not** undone, turn-off wrote nothing over it, the settings window showed the running schedule, and closing left the display at its original **41** |
+| Build | `src\Monitron.App\build.ps1` | `Monitron.App.exe` from the in-box `csc`, **0 MB** (`Schedule.cs` added to the source list) |
+| Machine | `src\Monitron.App\schedule-test.ps1` | **114 assertions, 0 failed** - a clock the test moves drives day -> fade -> night -> fade -> restore, the wrap across midnight, the override, the switch, sunset inertness, per-display ranges, and that a whole night costs at most `fade/step` writes each way |
+| End to end | `src\Monitron.App\verify-schedule.ps1` | **24 checks, 0 failed** - a scripted night (`--now`/`--rate 30`) on the real display: the probe watched the fade **41 -> 40 -> 37 -> 35 -> 33 -> 31**, the night held 31, a manual move to 41 was **not** undone, turn-off wrote nothing over it, the settings window showed the running schedule, and closing left the display at its original **41** |
 | Surface | `verify.ps1 -AppArgs '--strength 38'` | renders **500x339** with the live default state: the real display at 41 and `Night light: daylight - dims to 38% at 5:00 PM`, exiting 0 |
 | Regression | `model-test.ps1` / `writer-test.ps1` / `verify-settings.ps1` | **38 / 19 / 30**, 0 failed |
 | Regression | `verify-control.ps1 -AppArgs '--no-schedule'` | **11 checks, 0 failed**: the slider still drives the monitor (**41 -> 31 -> 41**, probe following) |
@@ -185,16 +185,16 @@ survives a reboot), then the **tray shell + autostart** that makes an overnight 
 no window open, then real **sunset/sunrise** by location, then per-monitor profiles and identity
 that survives reconnect (`docs/prior-art/apis-and-identity.md`).
 
-Evidence: `%TEMP%\monitorn-exp06\` - `00-default-live`, `01-day`, `02-night`, `03-override`,
+Evidence: `%TEMP%\monitron-exp06\` - `00-default-live`, `01-day`, `02-night`, `03-override`,
 `04-day-after`. The reproducible form is the three commands above: `schedule-test.ps1`,
 `verify-schedule.ps1` and `verify.ps1 -AppArgs '--strength 38'`.
 
 ## Learnings
-- `src\Monitorn.App\schedule-test.ps1` - builds and runs the headless `NightLightScheduler`
+- `src\Monitron.App\schedule-test.ps1` - builds and runs the headless `NightLightScheduler`
   assertions with the in-box `csc` (console exe; a winexe cannot print) against a clock the test
   moves: a whole night, the midnight wrap, the override and the switch in milliseconds. Use it
   whenever the schedule or the fade changes.
-- `src\Monitorn.App\verify-schedule.ps1` - a real night against a real display in ~50 s:
+- `src\Monitron.App\verify-schedule.ps1` - a real night against a real display in ~50 s:
   `--now "<today> 16:00:00" --rate 30 --on 16:05 --off 16:22 --strength N --fade-seconds 120
   --step-seconds 10` (the scaled clock carries the debounce with it), then assert with the read-only
   `probe.exe` that the display follows the fade, holds, survives a manual move and is left at its

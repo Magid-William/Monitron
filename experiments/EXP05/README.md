@@ -17,12 +17,12 @@ or the debounce applies a stale value, or the window freezes.
 
 ## Methodology & blast radius
 - Method:
-  1. `src/Monitorn.App/Brightness.cs`: `MonitorInfo`, the `IBrightnessController` seam EXP02
+  1. `src/Monitron.App/Brightness.cs`: `MonitorInfo`, the `IBrightnessController` seam EXP02
      reserved, and the **debounce machine** `BrightnessWriter` - per monitor a `Target` set on each
      request and a settle deadline `now + delay`; an `Advance()` step writes once when the deadline
      passes, tracking `Applied` vs `Target`, and a failed write is recorded, not retried until the
      next slider move. No P/Invoke, no WMI, so it compiles into the headless test.
-  2. `src/Monitorn.App/BrightnessController.cs`: the hardware implementation. Active targets come
+  2. `src/Monitron.App/BrightnessController.cs`: the hardware implementation. Active targets come
      from `QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS)` (`DisplayConfigGetDeviceInfo` for the GDI
      device name, the friendly name and the PnP device path); an active path whose
      `outputTechnology` has the internal high bit set is an internal panel driven over WMI
@@ -39,7 +39,7 @@ or the debounce applies a stale value, or the window freezes.
      `RangeValuePattern` away from and back to the original, and assert an **external** read-back
      (the read-only `probe.exe`) follows.
 - May touch: branch `EXP05` off `EXP04`; `experiments/EXP05/README.md`; the overview row;
-  `src/Monitorn.App/` (`Program.cs`, new `Brightness.cs` / `BrightnessController.cs` /
+  `src/Monitron.App/` (`Program.cs`, new `Brightness.cs` / `BrightnessController.cs` /
   `BrightnessWriterTests.cs`, `build.ps1` + a `System.Management` reference, new `writer-test.ps1`
   and `verify-control.ps1`); and the two repo facts the user asked to fix: `README.md`'s `.NET 8`
   claim -> net48, and `src/probe/Probe.cs:107` -> restore the `SetMonitorBrightness` method name
@@ -55,7 +55,7 @@ or the debounce applies a stale value, or the window freezes.
 - [x] Write model - **debounce** (~250 ms settle), latest value wins. (user)
 - [x] Row set - **active rendering targets only**, from `QueryDisplayConfig`. (user)
 - [x] Repo facts - **fix both** (`README.md` -> net48, `Probe.cs:107`). (user)
-- [x] Code home - **in the app** (`src/Monitorn.App/`); no `Monitorn.Core` library yet. (user)
+- [x] Code home - **in the app** (`src/Monitron.App/`); no `Monitron.Core` library yet. (user)
 - [x] Independent witness - the read-only `probe.exe`, so the assertion does not rest on the app
       agreeing with itself. *Assumption.*
 - [x] Debounce delay - **250 ms**; a failed write is surfaced, not retried silently. *Assumption.*
@@ -67,10 +67,10 @@ cleanly:
 
 | Pass | Command | Result |
 |---|---|---|
-| Build | `src\Monitorn.App\build.ps1` | `Monitorn.App.exe` from the in-box `csc`, **0 MB**, now with a `System.Management` reference and the new `Brightness*.cs` sources |
-| Machine | `src\Monitorn.App\writer-test.ps1` | **19 assertions, 0 failed** - a drag settles into one write of the last value, an unchanged value is a no-op, a failed write is surfaced and not retried until the next move, monitors debounce independently, and closing flushes a pending value |
+| Build | `src\Monitron.App\build.ps1` | `Monitron.App.exe` from the in-box `csc`, **0 MB**, now with a `System.Management` reference and the new `Brightness*.cs` sources |
+| Machine | `src\Monitron.App\writer-test.ps1` | **19 assertions, 0 failed** - a drag settles into one write of the last value, an unchanged value is a no-op, a failed write is surfaced and not retried until the next move, monitors debounce independently, and closing flushes a pending value |
 | Detection | `verify.ps1` (screenshot) | one real row: **`Q27G3G3R3`, 30** - matching the independent probe's read, not a sample |
-| End to end | `src\Monitorn.App\verify-control.ps1` | **11 checks, 0 failed**: 1 row for 1 active target, the row shows the probe's read, the slider drives **30 -> 20 -> 30** with the **probe's own read following each step**, and the gear still opens the night-light settings window |
+| End to end | `src\Monitron.App\verify-control.ps1` | **11 checks, 0 failed**: 1 row for 1 active target, the row shows the probe's read, the slider drives **30 -> 20 -> 30** with the **probe's own read following each step**, and the gear still opens the night-light settings window |
 
 Findings:
 - **The hypothesis holds.** The app detects the active display, shows its real brightness, and a
@@ -137,14 +137,14 @@ What it deliberately does not settle - the boundary of this experiment:
   PowerShell (an empty `-ArgumentList` is refused), and since EXP06 the surface runs the schedule by
   default, so a script that drives a slider should pass `--no-schedule`.
 
-Evidence: `%TEMP%\monitorn-exp05\` holds the shots; the reproducible form is the four commands above
+Evidence: `%TEMP%\monitron-exp05\` holds the shots; the reproducible form is the four commands above
 (`build.ps1`, `writer-test.ps1`, `verify.ps1`, `verify-control.ps1`).
 
 ## Learnings
-- `src\Monitorn.App\writer-test.ps1` - builds and runs the headless `BrightnessWriter` assertions
+- `src\Monitron.App\writer-test.ps1` - builds and runs the headless `BrightnessWriter` assertions
   with the in-box `csc` (`/target:exe`; a winexe cannot print), compiling only `Brightness.cs`, so
   the debounce is testable without touching `dxva2`/WMI. Use it whenever control logic changes.
-- `src\Monitorn.App\verify-control.ps1` - drives the real surface through UI Automation and proves a
+- `src\Monitron.App\verify-control.ps1` - drives the real surface through UI Automation and proves a
   slider reached the monitor: it reads the display **independently with the read-only `probe.exe`**,
   drives the slider with `RangeValuePattern`, asserts the probe's own read follows, then restores.
   Use it instead of describing a monitor write.

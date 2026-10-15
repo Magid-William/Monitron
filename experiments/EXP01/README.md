@@ -2,7 +2,7 @@
 
 ## Summary
 Survey the Windows brightness/scheduling landscape (Monitorian, Twinkle Tray, Display
-Dimmer, ClickMonitorDDC, f.lux, Windows Night Light, ...) to fix Monitorn's product
+Dimmer, ClickMonitorDDC, f.lux, Windows Night Light, ...) to fix Monitron's product
 thesis and decide what it must add. Research only — no app code.
 
 ## Hypothesis
@@ -39,7 +39,7 @@ Falsified if some widely used tool already does both out of the box.
 - [x] `AGENTS.md` retarget timing — default: at record time (build mode). **Adopted** (done on `main`).
 - [x] Success criterion — default: the doc names ≥5 tools, classifies each by scheduling ×
       DDC/CI, and states whether the hypothesis holds. **Met.**
-- [x] Next experiment — default: EXP02 = DDC/CI hardware probe + `Monitorn.Core` skeleton.
+- [x] Next experiment — default: EXP02 = DDC/CI hardware probe + `Monitron.Core` skeleton.
       **Recommended (see Conclusion).**
 
 ## Conclusion (findings)
@@ -52,20 +52,20 @@ schedules too, and **MonitorPilot** markets rules that "automatically lower brig
 shift external monitors to warmer" at night.
 
 So the premise "no mainstream tool offers DDC/CI hardware brightness on a user schedule" does
-not hold. Monitorn is **not** filling an empty capability gap.
+not hold. Monitron is **not** filling an empty capability gap.
 
 Additional findings:
 - **The mechanism is validated, not novel.** Every serious tool (Monitorian, Twinkle Tray,
-  Display Dimmer) uses DDC/CI via `dxva2.dll` for external monitors. Monitorn's planned
+  Display Dimmer) uses DDC/CI via `dxva2.dll` for external monitors. Monitron's planned
   approach is the proven one. See `docs/prior-art/apis-and-identity.md`.
 - **The dividing line is backlight vs. pixels.** f.lux and Windows Night Light change color
   temperature / gamma (the *image*), not the monitor's backlight. Only DDC/CI tools touch the
-  actual backlight. This distinction is the core of Monitorn's implementation choice.
+  actual backlight. This distinction is the core of Monitron's implementation choice.
 - **Monitorian's scheduling is the closest analogue but is gated.** Its Time Commands are part
   of paid Microsoft Store add-ons and are *excluded from the public repo*; free users fall back
   to the CLI + Task Scheduler.
 
-**Revised thesis.** Monitorn's reason to exist is not a capability gap but *fit and form*:
+**Revised thesis.** Monitron's reason to exist is not a capability gap but *fit and form*:
 a **native, dependency-light WPF/.NET 8** tray app (Twinkle Tray is Electron/Node ~200 MB;
 Display Dimmer is closed source), with an **overnight fade window tuned to the user's exact
 need** (21:00 → 06:00, fade down and restore rather than instant jumps), **EDID-robust
@@ -75,13 +75,13 @@ understood and maintained. It is also an explicit personal/learning build.
 **Consequence for the plan.** Because prior art de-risks the *mechanism* but removes the
 *novelty*, the next experiment should be small and evidence-driven: prove DDC/CI works on this
 machine and stand up the scheduler. Recommended next: **EXP02 = DDC/CI hardware probe +
-`Monitorn.Core` skeleton** (Native interop, `MonitorService`, clock-injected `Scheduler`).
+`Monitron.Core` skeleton** (Native interop, `MonitorService`, clock-injected `Scheduler`).
 
 ## Learnings
 - `git init -b main` then `git checkout -b EXP01` — use for every experiment; the repo must
   exist before the branch (this folder started empty).
 - Twinkle Tray, not Monitorian, is the real competitor: it is free and includes per-display
-  time-of-day scheduling. Compare Monitorn against Twinkle Tray, not just Monitorian.
+  time-of-day scheduling. Compare Monitron against Twinkle Tray, not just Monitorian.
 - Brightness automation splits into two families — **backlight (DDC/CI, WMI)** vs
   **pixel/gamma (f.lux, Night Light)**. Always state which one a feature belongs to.
 - Monitorian's paid add-on code is not in its public repo; do not plan to copy its scheduling.

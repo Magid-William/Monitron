@@ -32,7 +32,7 @@ $realHash = if ($realExisted) { (Get-FileHash $RealSettings -Algorithm SHA256).H
 $settingsDir = Split-Path -Parent $SettingsFile
 if ($settingsDir -and -not (Test-Path $settingsDir)) { [void](New-Item -ItemType Directory -Path $settingsDir) }
 if (Test-Path $SettingsFile) { Remove-Item $SettingsFile -Force }
-$AppArgs = "--no-schedule --settings-file `"$SettingsFile`" $AppArgs"
+$AppArgs = "--no-schedule --no-tray --settings-file `"$SettingsFile`" $AppArgs"
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms

@@ -288,7 +288,7 @@ $descending = $strength -lt $day
 # A scripted night: start at 16:00, turn on 16:05, fade 2 minutes in 10-second steps, turn off 16:22.
 # At --rate 30 one simulated minute is two real seconds, so the whole night is under a minute.
 $today = (Get-Date).ToString('yyyy-MM-dd')
-$args = "--now `"$today 16:00:00`" --rate $Rate --on 16:05 --off 16:22 --strength $strength --fade-seconds 120 --step-seconds 10 --settings-file `"$SettingsFile`""
+$args = "--now `"$today 16:00:00`" --rate $Rate --on 16:05 --off 16:22 --strength $strength --fade-seconds 120 --step-seconds 10 --no-tray --settings-file `"$SettingsFile`""
 Write-Host "`n== launch a scripted night =="
 Write-Host ("  $Exe $args")
 Write-Host ("  strength $strength (from $day), fade 120 s in 10 s steps")

@@ -3,7 +3,8 @@
 # extended by EXP06 (the schedule machine), extended by EXP07 (the settings file),
 # extended by EXP08 (the theme: Theme.cs, Theming.cs, SystemTheme.cs, ThemeReport.cs),
 # extended by EXP09 (the screen position: Placement.cs, SystemPlacement.cs, PlacementApp.cs) and by
-# EXP10 (each row's display id as its UI automation id, for the N-display verifiers).
+# EXP10 (each row's display id as its UI automation id, for the N-display verifiers), and by EXP11
+# (the tray shell: Tray.cs, AutoStart.cs, TrayIcon.cs - and the System.Drawing the icon is drawn with).
 #
 # The UI is written code-only (no XAML), so no markup/BAML step is needed and csc alone
 # can produce the executable; WPF comes from the in-box runtime assemblies.
@@ -23,7 +24,8 @@ $refs = @("$(Join-Path $net 'WPF')\PresentationFramework.dll",
     "$(Join-Path $net 'WPF')\PresentationCore.dll",
     "$(Join-Path $net 'WPF')\WindowsBase.dll",
     (Join-Path $net 'System.Xaml.dll'),
-    (Join-Path $net 'System.Management.dll'))
+    (Join-Path $net 'System.Management.dll'),
+    (Join-Path $net 'System.Drawing.dll'))
 foreach ($r in $refs) { if (-not (Test-Path $r)) { throw "reference assembly not found: $r" } }
 
 $here = Split-Path -Parent $PSCommandPath
@@ -45,6 +47,9 @@ $args = @('/nologo', '/target:winexe', '/platform:x64', "/out:$out",
       (Join-Path $here 'Placement.cs'),
       (Join-Path $here 'SystemPlacement.cs'),
       (Join-Path $here 'PlacementApp.cs'),
+      (Join-Path $here 'Tray.cs'),
+      (Join-Path $here 'AutoStart.cs'),
+      (Join-Path $here 'TrayIcon.cs'),
       (Join-Path $here 'SettingsWindow.cs'))
 
 & $csc @args

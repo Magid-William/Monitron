@@ -278,7 +278,7 @@ function TrayParts([IntPtr]$barHandle) {
 # --- launching and closing ---
 
 function Launch([string]$label, [string]$extra) {
-    $argline = "--no-schedule --settings-file `"$SettingsFile`" $extra"
+    $argline = "--no-schedule --no-tray --settings-file `"$SettingsFile`" $extra"
     Write-Host "`n== $label =="
     Note "app: Monitorn.App.exe $argline"
     $p = Start-Process -FilePath $Exe -ArgumentList $argline -PassThru

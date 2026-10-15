@@ -28,7 +28,7 @@ if (-not (Test-Path $ShotDir)) { [void](New-Item -ItemType Directory -Path $Shot
 $settingsDir = Split-Path -Parent $SettingsFile
 if ($settingsDir -and -not (Test-Path $settingsDir)) { [void](New-Item -ItemType Directory -Path $settingsDir) }
 if (Test-Path $SettingsFile) { Remove-Item $SettingsFile -Force }
-$launchArgs = "$AppArgs --settings-file `"$SettingsFile`""
+$launchArgs = "$AppArgs --no-tray --settings-file `"$SettingsFile`""
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms

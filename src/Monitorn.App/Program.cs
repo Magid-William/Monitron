@@ -11,6 +11,11 @@
 // EXP10 - and the verifier seam: each row's slider and gear carry that display's own id as their UI
 //         Automation id ("DDC:<device path>" or "WMI:<InstanceName>"), so a verifier can bind a row
 //         to a display on a machine with more than one active target.
+// EXP11 - and the tray shell: a notification-area icon whose menu shows/hides the surface, toggles a
+//         "Run on Windows startup" Run entry (AutoStart.cs) and quits - and closing the window now hides it,
+//         so the schedule keeps running with no window open. TrayIcon.cs is the shell half, Tray.cs
+//         the pure Show/Hide state. --no-tray / --hidden / --tray-menu / --startup-value /
+//         --tray-report / --quit-after are its verification seams.
 //
 // One row per ACTIVE display: its real name, its real current brightness on a slider, and a gear
 // that opens the settings window (EXP04). Dragging a slider is debounced by BrightnessWriter and
@@ -297,6 +302,12 @@ namespace Monitorn.App
             string placeReportDir = null;    // --place-report <dir>: the reading and the computed rectangle
             TimeSpan? placeAfter = null;     // --place-after <sec> L,T,R,B: a work-area change while it runs
             PlacementBox placeAfterWork = PlacementBox.Empty;
+            bool tray = true;             // --no-tray: the pre-tray lifecycle - closing the window exits
+            bool hidden = false;          // --hidden: start tray-only (what the autostart entry passes)
+            bool trayMenu = false;        // --tray-menu: open the tray menu at once (verification)
+            string startupValue = StartupEntry.DefaultName;  // --startup-value <name>: a throwaway Run value name
+            string trayReportDir = null;  // --tray-report <dir>: the app's own tray reading
+            TimeSpan? quitAfter = null;   // --quit-after <sec>: run the real Quit after N seconds (verification)
 
             for (int i = 0; i < args.Length; i++)
             {
@@ -349,6 +360,12 @@ namespace Monitorn.App
                     if (!PlacementGeometry.TryParseBox(args[++i], out placeAfterWork))
                         throw new ArgumentException("--place-after takes a number of seconds and L,T,R,B in whole pixels");
                 }
+                else if (a == "--no-tray") tray = false;
+                else if (a == "--hidden") hidden = true;
+                else if (a == "--tray-menu") trayMenu = true;
+                else if (a == "--startup-value" && i + 1 < args.Length) startupValue = args[++i];
+                else if (a == "--tray-report" && i + 1 < args.Length) trayReportDir = args[++i];
+                else if (a == "--quit-after" && i + 1 < args.Length) quitAfter = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
             }
 
             var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
@@ -431,6 +448,7 @@ namespace Monitorn.App
             // The reading is injectable (--place-edge / --place-dpi / --place-work) so a verifier can
             // drive another taskbar edge, another DPI or another work area without moving the user's
             // taskbar; --no-place is the baseline everything else is measured against.
+            Action replace = null;   // kept so showing the surface from the tray can re-place it
             if (place)
             {
                 var placeScript = new PlacementScript { Edge = placeEdge, Dpi = placeDpi, WorkArea = placeWork };
@@ -439,7 +457,7 @@ namespace Monitorn.App
                 {
                     placementReading = delegate(IntPtr hwnd) { return placeScript.Apply(SystemPlacement.Read(hwnd)); };
                 }
-                Action replace = Place.Attach(window, placementReading, placeMargin, placeReportDir);
+                replace = Place.Attach(window, placementReading, placeMargin, placeReportDir);
 
                 if (placeAfter.HasValue)
                 {
@@ -478,15 +496,117 @@ namespace Monitorn.App
             };
             timer.Start();
 
-            window.Closing += delegate
+            // --- the tray shell (EXP11): the icon, its menu, and what closing the window now means ---
+            // The tray attaches to the full surface, not to the --settings spike. --no-tray restores
+            // the pre-tray lifecycle (closing exits), which the older verify scripts still pass.
+            bool trayOn = tray && !settingsOnly;
+            var trayModel = new TrayModel(!hidden);
+
+            bool quitting = false;
+            bool cleanedUp = false;
+            Action cleanup = delegate
             {
+                if (cleanedUp) return;
+                cleanedUp = true;
                 timer.Stop();
                 foreach (NightWrite w in scheduler.Restore()) writer.Request(w.Id, w.Value);
-                writer.Flush();       // land the last value if the window closes mid-drag or mid-fade
+                writer.Flush();   // land the last value if the window closes mid-drag or mid-fade
                 controller.Dispose();
             };
 
-            app.Run(window);
+            TrayIcon icon = null;
+            Action quit = delegate
+            {
+                quitting = true;
+                cleanup();
+                if (icon != null) icon.Remove();
+                app.Shutdown();
+            };
+
+            Action show = delegate
+            {
+                if (!window.IsVisible) window.Show();
+                if (replace != null) replace();   // the work area may have moved while it was hidden
+                window.Activate();
+                trayModel.Show();
+            };
+            Action hide = delegate
+            {
+                window.Hide();
+                trayModel.Hide();
+            };
+            Action toggleVisibility = delegate { if (trayModel.Visible) hide(); else show(); };
+
+            if (trayOn)
+            {
+                // With the surface able to hide, closing it must not end the app: Quit is the only
+                // exit, and the schedule keeps running with no window open. OnExplicitShutdown is that.
+                app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                app.MainWindow = window;   // the settings window still centres on the surface
+
+                var startupStore = new RegistryStartup();
+                string exePath = System.Reflection.Assembly.GetEntryAssembly().Location;
+                Action toggleStartup = delegate
+                {
+                    if (AutoStart.IsEnabled(startupStore, startupValue, exePath)) AutoStart.Disable(startupStore, startupValue);
+                    else AutoStart.Enable(startupStore, startupValue, exePath);
+                };
+
+                icon = TrayIcon.Attach(window, theme, trayModel, startupStore, startupValue, exePath,
+                    toggleVisibility, toggleStartup, quit, trayReportDir);
+
+                if (icon != null && !icon.Added)
+                {
+                    // The shell refused the icon. Without a tray there is no way back into a hidden
+                    // window and no way out, so fall back to the ordinary window lifecycle.
+                    icon.Remove();
+                    icon = null;
+                    trayOn = false;
+                    app.ShutdownMode = ShutdownMode.OnMainWindowClose;
+                }
+                else
+                {
+                    // A logoff or shutdown must give the displays back, exactly as Quit does.
+                    app.SessionEnding += delegate { if (quit != null) quit(); };
+                }
+            }
+
+            window.Closing += delegate(object sender, System.ComponentModel.CancelEventArgs e)
+            {
+                if (trayOn && !quitting)
+                {
+                    // The X hides to the tray; the schedule keeps dimming with no window open.
+                    e.Cancel = true;
+                    hide();
+                    return;
+                }
+                cleanup();
+            };
+
+            if (trayOn)
+            {
+                if (quitAfter.HasValue)
+                {
+                    // The real Quit, after a delay: what a verifier uses to tear a run down cleanly.
+                    var stop = new DispatcherTimer { Interval = quitAfter.Value };
+                    stop.Tick += delegate { stop.Stop(); quit(); };
+                    stop.Start();
+                }
+                if (trayMenu)
+                {
+                    // A right click, scripted: the shell needs a moment before the icon is registered.
+                    var openMenu = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                    openMenu.Tick += delegate { openMenu.Stop(); icon.ShowMenu(); };
+                    openMenu.Start();
+                }
+
+                if (!hidden) show();
+                app.Run();
+            }
+            else
+            {
+                app.Run(window);
+            }
         }
 
         /// <summary>Asks the schedule what it wants and hands it to the writer, which debounces it.</summary>

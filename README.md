@@ -6,7 +6,9 @@ previous brightness at 06:00.
 
 - External monitors: **DDC/CI** via `dxva2.dll` (per-monitor, like Monitorian).
 - Internal laptop panels: the Windows WMI brightness API.
-- Planned: per-monitor profiles that survive unplug/reconnect, auto-start on sign-in.
+- A notification-area icon: **Show/Hide**, **Run on Windows startup**, and **Quit**; the schedule keeps
+  running while the window is closed.
+- Planned: per-monitor profiles that survive unplug/reconnect.
 
 Stack: **C# / WPF on .NET Framework 4.8** (built with the in-box `csc.exe` - no SDK needed).
 

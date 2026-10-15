@@ -52,6 +52,9 @@ namespace Monitorn.App
         private ControlTemplate _thumb;
         private ControlTemplate _barAccent;
         private ControlTemplate _barRest;
+        private ControlTemplate _menuItem;
+        private ControlTemplate _separator;
+        private ControlTemplate _contextMenu;
 
         public ThemeBrushes(ThemePalette palette) { Equip(palette); }
 
@@ -71,6 +74,7 @@ namespace Monitorn.App
 
             _check = null; _radio = null; _button = null; _textBox = null;
             _thumb = null; _barAccent = null; _barRest = null;
+            _menuItem = null; _separator = null; _contextMenu = null;
         }
 
         public static Color ColorOf(uint argb)
@@ -121,6 +125,24 @@ namespace Monitorn.App
         public ControlTemplate BarRest
         {
             get { if (_barRest == null) _barRest = Theming.BuildBar(Copy(ControlEdge)); return _barRest; }
+        }
+
+        /// <summary>A tray menu line (EXP11): the place a check mark shows, and the OS highlight.</summary>
+        public ControlTemplate MenuItemFace
+        {
+            get { if (_menuItem == null) _menuItem = Theming.BuildMenuItem(this); return _menuItem; }
+        }
+
+        /// <summary>The thin line between the tray menu's groups (EXP11).</summary>
+        public ControlTemplate SeparatorLine
+        {
+            get { if (_separator == null) _separator = Theming.BuildSeparator(this); return _separator; }
+        }
+
+        /// <summary>The tray menu's frame (EXP11): the OS one draws SystemColors, not our background.</summary>
+        public ControlTemplate ContextMenuFrame
+        {
+            get { if (_contextMenu == null) _contextMenu = Theming.BuildContextMenu(this); return _contextMenu; }
         }
     }
 
@@ -194,6 +216,35 @@ namespace Monitorn.App
                     c.Foreground = t.Ink;
                     if (theme.Templates) c.Template = t.Check;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Paints a ContextMenu from the same palette (EXP11). The menu is its own popup, not part of
+        /// a window's logical tree, so <see cref="Apply"/> never reaches it - it is styled here, each
+        /// time it opens, which also picks up a theme change between openings.
+        /// </summary>
+        public static void StyleMenu(ContextMenu menu, ThemeState theme)
+        {
+            ThemeBrushes t = theme.Brushes;
+            menu.Background = t.WindowBg;
+            menu.Foreground = t.Ink;
+            menu.BorderBrush = t.RowEdge;
+            menu.Padding = new Thickness(0, 4, 0, 4);
+            if (theme.Templates) menu.Template = t.ContextMenuFrame;
+
+            foreach (object item in menu.Items)
+            {
+                MenuItem line = item as MenuItem;
+                if (line != null)
+                {
+                    line.Foreground = t.Ink;
+                    line.Background = Brushes.Transparent;
+                    if (theme.Templates) line.Template = t.MenuItemFace;
+                    continue;
+                }
+                Separator gap = item as Separator;
+                if (gap != null && theme.Templates) gap.Template = t.SeparatorLine;
             }
         }
 
@@ -412,6 +463,112 @@ namespace Monitorn.App
 
             ControlTemplate template = new ControlTemplate(typeof(RepeatButton));
             template.VisualTree = bar;
+            return template;
+        }
+
+        /// <summary>
+        /// A tray menu line (EXP11): a fixed check column (so a checkmark never shifts the text), the
+        /// header, the OS-like highlight, and the disabled fade. The check mark is shown by the
+        /// template's IsChecked trigger - which is what makes the checkable "Run on Windows startup" read
+        /// as checked through UI Automation's TogglePattern.
+        ///
+        /// A horizontal StackPanel with the check mark given a fixed width, rather than a Grid: a
+        /// Grid's Column attached property cannot be set from a FrameworkElementFactory, and a
+        /// ContentPresenter with Header content source is what actually draws the line.
+        /// </summary>
+        public static ControlTemplate BuildMenuItem(ThemeBrushes t)
+        {
+            Brush ink = t.Copy(t.Ink);
+            Brush hover = t.Copy(t.ControlHover);
+
+            FrameworkElementFactory face = new FrameworkElementFactory(typeof(Border));
+            face.Name = "Face";
+            face.SetValue(Border.BackgroundProperty, Brushes.Transparent);
+
+            FrameworkElementFactory row = new FrameworkElementFactory(typeof(StackPanel));
+            row.SetValue(StackPanel.OrientationProperty, Orientation.Horizontal);
+
+            FrameworkElementFactory mark = new FrameworkElementFactory(typeof(TextBlock));
+            mark.Name = "Check";
+            mark.SetValue(TextBlock.TextProperty, "\uE73E");   // Segoe MDL2 Assets: check
+            mark.SetValue(TextBlock.FontFamilyProperty, new FontFamily("Segoe MDL2 Assets"));
+            mark.SetValue(TextBlock.FontSizeProperty, 12.0);
+            mark.SetValue(TextBlock.ForegroundProperty, ink);
+            mark.SetValue(FrameworkElement.WidthProperty, 22.0);
+            mark.SetValue(TextBlock.TextAlignmentProperty, TextAlignment.Center);
+            mark.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+            // Hidden, not Collapsed: Collapsed takes no space, which would let the text slide to the
+            // left edge and put it back only when checked. Hidden reserves the check column always.
+            mark.SetValue(UIElement.VisibilityProperty, Visibility.Hidden);
+            row.AppendChild(mark);
+
+            FrameworkElementFactory content = new FrameworkElementFactory(typeof(ContentPresenter));
+            content.SetValue(ContentPresenter.ContentSourceProperty, "Header");
+            content.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+            content.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 6, 16, 6));
+            row.AppendChild(content);
+
+            face.AppendChild(row);
+
+            ControlTemplate template = new ControlTemplate(typeof(MenuItem));
+            template.VisualTree = face;
+
+            Trigger hot = new Trigger();
+            hot.Property = MenuItem.IsHighlightedProperty;
+            hot.Value = true;
+            hot.Setters.Add(new Setter(Border.BackgroundProperty, hover, "Face"));
+            template.Triggers.Add(hot);
+
+            Trigger marked = new Trigger();
+            marked.Property = MenuItem.IsCheckedProperty;
+            marked.Value = true;
+            marked.Setters.Add(new Setter(UIElement.VisibilityProperty, Visibility.Visible, "Check"));
+            template.Triggers.Add(marked);
+
+            Trigger off = new Trigger();
+            off.Property = UIElement.IsEnabledProperty;
+            off.Value = false;
+            off.Setters.Add(new Setter(UIElement.OpacityProperty, 0.5));
+            template.Triggers.Add(off);
+
+            return template;
+        }
+
+        /// <summary>
+        /// The menu's own frame (EXP11). The OS ContextMenu template draws the system menu brush for
+        /// its background, so setting ContextMenu.Background is not enough - the frame has to be
+        /// ours, exactly as the CheckBox and Slider templates are.
+        /// </summary>
+        public static ControlTemplate BuildContextMenu(ThemeBrushes t)
+        {
+            FrameworkElementFactory frame = new FrameworkElementFactory(typeof(Border));
+            frame.Name = "Frame";
+            frame.SetValue(Border.BackgroundProperty, t.Copy(t.WindowBg));
+            frame.SetValue(Border.BorderBrushProperty, t.Copy(t.RowEdge));
+            frame.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+            frame.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+            frame.SetValue(Border.PaddingProperty, new Thickness(0, 4, 0, 4));
+
+            FrameworkElementFactory host = new FrameworkElementFactory(typeof(StackPanel));
+            host.Name = "Items";
+            host.SetValue(Panel.IsItemsHostProperty, true);
+            frame.AppendChild(host);
+
+            ControlTemplate template = new ControlTemplate(typeof(ContextMenu));
+            template.VisualTree = frame;
+            return template;
+        }
+
+        /// <summary>The thin line between a menu's groups, in the row edge color.</summary>
+        public static ControlTemplate BuildSeparator(ThemeBrushes t)
+        {
+            FrameworkElementFactory line = new FrameworkElementFactory(typeof(Border));
+            line.SetValue(Border.BackgroundProperty, t.Copy(t.RowEdge));
+            line.SetValue(FrameworkElement.HeightProperty, 1.0);
+            line.SetValue(FrameworkElement.MarginProperty, new Thickness(10, 4, 10, 4));
+
+            ControlTemplate template = new ControlTemplate(typeof(Separator));
+            template.VisualTree = line;
             return template;
         }
     }

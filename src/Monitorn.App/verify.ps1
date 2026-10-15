@@ -83,7 +83,7 @@ function ShotGood([IntPtr]$h, [string]$path) {
     return @($where, $best, 4)
 }
 
-$p = Start-Process -FilePath $Exe -ArgumentList $AppArgs -PassThru
+$p = Start-Process -FilePath $Exe -ArgumentList "--no-tray $AppArgs" -PassThru
 $h = [IntPtr]::Zero
 for ($i = 0; $i -lt 60; $i++) {
     Start-Sleep -Milliseconds 250

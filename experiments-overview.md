@@ -15,6 +15,7 @@ only the user declares the final status.
 | EXP08 | Dark mode: the app's windows follow the Windows app theme | success | EXP08 | 2026-10-15 | 2026-10-15 | [experiments/EXP08/README.md](experiments/EXP08/README.md) |
 | EXP09 | Screen position: the surface as a bottom-right flyout, near the clock | success | EXP09 | 2026-10-15 | 2026-10-15 | [experiments/EXP09/README.md](experiments/EXP09/README.md) |
 | EXP10 | Raise the brightness regressions to N displays | success | EXP10 | 2026-10-15 | 2026-10-15 | [experiments/EXP10/README.md](experiments/EXP10/README.md) |
+| EXP11 | The tray shell: notification-area icon, Run on Windows startup, Quit | success | EXP11 | 2026-10-15 | 2026-10-15 | [experiments/EXP11/README.md](experiments/EXP11/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -183,3 +184,30 @@ promotion allowed, approved by the user, so that budget is spent): *verify once,
 is done - not after every edit*. Recommend **EXP11 = the tray shell + autostart** - the standing
 step, now with its regressions back and the flyout corner EXP09 proved - then the stored `theme=`
 preference, real sunset/sunrise, per-monitor profiles.
+
+**EXP11:** `success` (user-declared). The standing step since EXP07, and the app now lives in the
+notification area: a runtime-drawn icon with a three-line menu - **Show/Hide**, a checkable **"Run on
+Windows startup"**, and **Quit**. Closing the window now hides to the tray, so the schedule keeps
+dimming with no window open; Quit is the only exit and runs the restore path. `TrayIcon.cs` is the
+shell half (`Shell_NotifyIcon` on the surface's own HWND, so the icon survives a Hide and is gone
+exactly when the app exits), `Tray.cs` the pure Show/Hide state, and `AutoStart.cs` the Run command
+and its enable/disable over an injectable store; `Theming.cs` gained a ContextMenu/MenuItem template
+so the menu follows the EXP08 palette. Seams: `--no-tray` (the pre-tray lifecycle, which every older
+verifier now passes), `--hidden` (what the Run entry launches), `--tray-menu`, `--startup-value`,
+`--tray-report`, `--quit-after`. **Run 2026-10-15:** 35 headless assertions and 55 end-to-end checks,
+regressions green (38 / 19 / 114 / 42 / 34 / 63 / 35 headless; 60 / 27 / 30 / 42 / 28 / 35 / 55 end to
+end). The icon is witnessed by the shell itself (`Shell_NotifyIconGetRect`, because Windows hides a
+new icon in the overflow, where no taskbar button exists); the Run entry by `Get-ItemProperty` on
+`HKCU\...\Run` under a throwaway value name (`"<exe>" --hidden` written and removed, the user's real
+autostart untouched); Show/Hide and close-to-tray by Win32 `IsWindowVisible` plus the process still
+running; and Quit's restore by the read-only probe (a scripted night dimmed the AOC to 76, Quit
+returned its day 78). The menu's theming is measured as luminance (0.15 dark vs 0.96 light). Three
+defects were found by driving and by looking: `TogglePattern.Toggle()` raises `Checked`, not `Click`,
+so the startup handler never ran; the OS `ContextMenu` template paints `SystemColors`, so it needed
+its own template; and a `Collapsed` check mark takes no space, so the reserved column vanished -
+`Hidden` now, asserted by "the menu does not resize when a line is checked". Boundaries: the tray
+attaches to the full surface, not the `--settings` spike; the Run key is the single source of truth;
+session end restores; a refused icon falls back to the ordinary window lifecycle; single-instance is
+out of scope. No promotion into `AGENTS.md` (that budget was spent in EXP10). Recommend **EXP12 = the
+stored `theme=` preference** (small now, and the tray menu joins it), then real sunset/sunrise by
+location, then per-monitor profiles.

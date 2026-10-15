@@ -253,7 +253,7 @@ $surfaceFile = Join-Path $stateDir 'surface.ini'
 if (Test-Path $surfaceFile) { Remove-Item $surfaceFile -Force }
 # Make the schedule inert without switching it off: turn-on == turn-off touches no monitor, and
 # (unlike --no-schedule) it leaves the feature on, so the gear's body stays drivable.
-$inert = "--on 00:00 --off 00:00 --settings-file `"$surfaceFile`""
+$inert = "--on 00:00 --off 00:00 --no-tray --settings-file `"$surfaceFile`""
 $app = OpenApp $inert
 $script:win = $app.Window
 Check ($app.Window.Current.Name -eq 'Monitorn') "the surface is up (got '$($app.Window.Current.Name)')"

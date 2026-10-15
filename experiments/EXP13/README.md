@@ -133,6 +133,22 @@ general audience at the user's ask: it leads with what the app does for the read
 build and verification detail into a short "For developers" section - the "no SDK" line is a build
 fact, not a selling point, and a casual reader has no use for it.
 
+**Post-conclusion change 4 (user's ask, same experiment): the README got a face.** The landing page
+now opens with the logo and carries two screenshots of the app — the window (a row per display) and
+the night-light settings — in a new `docs/images/`. No app code changed and nothing was rebuilt; the
+images are the app's own pixels, from the EXP08 report seam
+(`Monitron.App.exe --theme-report <dir> --os-theme light --width 420`, whose report mode explicitly
+writes no monitor), so they are chromeless, reproducible, and cannot dim a screen to make them. The
+header mark is `docs/images/logo.png`, the repo's own rasteriser run over the untouched `logo.svg`
+(`icogen.exe logo.svg <temp>.ico --png <dir> 256`) — the raw SVG's art sits in ~47% of its viewBox, so
+rasterising crops it; the throwaway `.ico` went to temp, so `Monitron.ico` was not rewritten. Light
+theme, as the Windows default. The window shot came out with **two** rows (`Display 1` and the AOC
+`Q27G3G3R3`): the internal panel EXP10 declared gone is answering again, so the README's screenshot
+happens to show both halves of the feature. Confirmed the road, not assumed: `Detect-Brightness.ps1`
+(read-only) now lists two display monitors, the primary `\\.\DISPLAY2` with DDC brightness
+**unreadable** and a WMI panel `DISPLAY\BOE0764\...` at 32 — that is the `Display 1` row — beside the
+`\\.\DISPLAY1` AOC at 32 over DDC/CI.
+
 ## Learnings
 - A repo-wide product rename: a byte-level `String.Replace` over every text file (a Latin1 round-trip
   keeps the bytes exact; these files have no BOM), with the checkout path protected first

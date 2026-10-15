@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/images/logo.png" alt="Monitron" width="110"></p>
+
 # Monitron
 
 **Brightness for every monitor — and a night light that dims them for you.**
@@ -5,6 +7,11 @@
 Monitron sits in your notification area, next to the clock. It gives each of your screens its own
 brightness slider, and it can dim them all on a schedule — fade down in the evening, hold the low
 level overnight, and put every screen back the way it was in the morning.
+
+<p align="center">
+  <img src="docs/images/monitron-window.png" height="240" alt="Monitron's window: a brightness slider and a settings gear for each display">
+  <img src="docs/images/monitron-night-light.png" height="240" alt="The night-light settings: strength, gradual fade, and the hours it runs">
+</p>
 
 ## What it does
 

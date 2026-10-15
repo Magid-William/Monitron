@@ -95,6 +95,15 @@ real cursors and monitors. The standing `*-test.ps1` and `verify-*.ps1` suites w
 this change touches one file's slider and one border, no model and no `build.ps1`, and the user asked
 to conclude without further changes (EXP12 set the same precedent).
 
+**Post-conclusion change (user's ask, same experiment).** The hint paragraph that sat under the
+schedule status - *"Drag a slider to set a monitor. The night-light schedule dims every display to its
+strength at the time you set, and gives it back afterwards. Settings are saved and come back next
+launch."* - was removed from `Program.cs`. It was the only user-facing text that started with "Drag",
+and it lived directly under the `NightLightStatus` line. Nothing else changed; no verifier reads it
+(the standing `*-test.ps1` and `verify-*.ps1` suites name neither the string nor its block), so the
+30/0 slider result above stands. The user judged it did not warrant its own experiment, so it is
+recorded here.
+
 ## Learnings
 - `IsMoveToPointEnabled = true` on a slider with the OS template: a track click lands on the press,
   snapped to the tick and clamped, and a press on the thumb is still left to the drag. One line; no

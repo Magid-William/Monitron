@@ -264,5 +264,7 @@ keystroke is synthesized anywhere (the Arrow and Page steps are asserted as what
 reports, not by pressing them), the cue is asserted on the light palette only (`--theme light` pins
 the colours the pixels are read by), and the standing suites were not re-run at the user's instruction
 (this touches one file's slider and one border, no model and no `build.ps1`). No promotion into
-`AGENTS.md`. Recommend the standing steps: the stored `theme=` preference - the tray menu joins it -
+`AGENTS.md`. Post-conclusion (the user's ask, same experiment): the hint paragraph under the schedule
+status ("Drag a slider to set a monitor...") was removed from `Program.cs` - no verifier reads it, so
+the run above stands. Recommend the standing steps: the stored `theme=` preference - the tray menu joins it -
 then real sunset/sunrise by location, then per-monitor profiles.

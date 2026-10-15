@@ -23,6 +23,8 @@
 //         one LargeChange away from it (WPF's move-to-point), the slider carries its display's name
 //         for a screen reader, and its row shows where the keyboard is - the row's edge takes the
 //         accent while that row's slider has the focus. verify-slider.ps1 drives all three.
+//         Added at the user's ask after conclusion: the hint paragraph that sat under the schedule
+//         status ("Drag a slider to set a monitor...") is gone - the rows and the status say enough.
 //
 // One row per ACTIVE display: its real name, its real current brightness on a slider, and a gear
 // that opens the settings window (EXP04). Dragging a slider is debounced by BrightnessWriter and
@@ -90,14 +92,6 @@ namespace Monitorn.App
             };
             System.Windows.Automation.AutomationProperties.SetAutomationId(status, "NightLightStatus");
             root.Children.Add(status);
-
-            root.Children.Add(Label(
-                monitors.Count == 0
-                    ? ""
-                    : "Drag a slider to set a monitor. The night-light schedule dims every display to "
-                      + "its strength at the time you set, and gives it back afterwards. Settings are "
-                      + "saved and come back next launch.",
-                11, t.Muted, FontWeights.Normal, new Thickness(0, 8, 0, 0)));
 
             var window = new Window
             {

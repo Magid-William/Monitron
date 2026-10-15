@@ -336,6 +336,6 @@ looks *hung*, which is why `-DryRun` first is now the habit); a function that em
 call-site `[string]` cast as AutomationNull rather than `""`; and `gh release view --json` has no
 `isLatest` in gh 2.86. Boundaries: **the SmartScreen warning itself is unwitnessed** — `gh`'s download
 carries no `Zone.Identifier`, so nothing here ever wore the mark that warning keys on — and the
-release is unsigned by decision, not omission; `main` sits one commit past the tag (the verifier's
-fix and the record, no app source). Recommend the standing steps: the stored `theme=` preference,
+release is unsigned by decision, not omission; the commits after the tag (the verifier's fix and the
+record) touch no app source. Recommend the standing steps: the stored `theme=` preference,
 then real sunset/sunrise by location, then per-monitor profiles.

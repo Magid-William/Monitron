@@ -87,9 +87,9 @@ Nothing of the user's was touched: the run used a throwaway settings file and a 
 name, the real `%APPDATA%\Monitron\settings.ini` kept its byte-for-byte size and timestamp, and the
 read-only probe read the same 32 before and after.
 
-**Boundaries.** The tag names `54e0145`; the one commit after it (the verifier's Latest fix and the
-Learnings above) touches no app source, so `main` sits one commit past the release and GitHub says so
-on the release page. The release is unsigned by decision, not by omission - a certificate is a
+**Boundaries.** The tag names `54e0145`, and the commits after it — the verifier's Latest fix, the
+Learnings and this conclusion — touch no app source, so `main` sits past the release and the release
+page says how far. The release is unsigned by decision, not by omission - a certificate is a
 purchase and an identity, and the claim here is that the download is complete without one - and
 **SmartScreen's first-run warning is the one thing not witnessed**: `gh release download` attaches no
 `Zone.Identifier` (checked: the file has only `:$DATA`), so a downloaded file on this machine never

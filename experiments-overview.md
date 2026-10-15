@@ -18,7 +18,7 @@ only the user declares the final status.
 | EXP11 | The tray shell: notification-area icon, Run on Windows startup, Quit | success | EXP11 | 2026-10-15 | 2026-10-15 | [experiments/EXP11/README.md](experiments/EXP11/README.md) |
 | EXP12 | The app icon: the neon-green logo, as the app's one multi-size .ico | success | EXP12 | 2026-10-15 | 2026-10-15 | [experiments/EXP12/README.md](experiments/EXP12/README.md) |
 | EXP13 | The slider knob: a click lands where you clicked | success | EXP13 | 2026-10-15 | 2026-10-15 | [experiments/EXP13/README.md](experiments/EXP13/README.md) |
-| EXP14 | Live displays: re-detect the display set on a display change | inProg | EXP14 | 2026-10-16 | - | [experiments/EXP14/README.md](experiments/EXP14/README.md) |
+| EXP14 | Live displays: re-detect the display set on a display change | success | EXP14 | 2026-10-16 | 2026-10-16 | [experiments/EXP14/README.md](experiments/EXP14/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -277,15 +277,21 @@ https://github.com/Magid-William/Monitron (public, MIT, `main` = this branch, al
 pushed); `README.md` was rewritten from its "Pre-implementation" scaffold and the author's local
 checkout path was removed from the records.
 
-**EXP14:** in progress. The user's first symptom, made live: the display set is `Detect()`ed once
-(`Program.cs`) and never re-read, so after a projection change (Extend / external-only / duplicate) a
-vanished display keeps a row and a new one has none. A `DisplaySet` diff + `DisplayRegistry` re-run on a
-debounced `WM_DISPLAYCHANGE` (and on the tray's Show) now adds and removes rows, prunes the writer and
-scheduler for removed ids, and a `SurfaceView` detaches a removed row's handlers; an empty detection
-(zero active paths mid-switch) is not trusted. Seams: `--monitors`, `--display-change-after`,
-`--display-report`; new `display-test.ps1` (headless) and `verify-displays.ps1` (end to end). The
-second symptom the user raised - the surface opening on the wrong screen - was attempted as a
-pointer-driven placement, built and driven, then **rolled back** the same day: it opened in odd places
-(a monitor's `0,0`) and did not follow the user between monitors. `SystemPlacement`, `PlacementApp` and
-`Placement` are restored to EXP09 untouched, the `--place-cursor` seam is gone, and issue 2 stands open
-with the recommendation to try a *remembered* screen (persisted) next.
+**EXP14:** `success` (user-declared). The user's first symptom, made live: the display set was
+`Detect()`ed once (`Program.cs`) and never re-read, so after a projection change (Extend /
+external-only / duplicate) a vanished display kept a row and a new one had none. Now a `DisplaySet` diff
++ `DisplayRegistry` re-run on a debounced `WM_DISPLAYCHANGE` (and on the tray's Show) adds and removes
+rows, prunes the writer and scheduler for removed ids, and a `SurfaceView` detaches a removed row's
+handlers; an empty detection (zero active paths mid-switch) is not trusted. Seams: `--monitors`,
+`--display-change-after`, `--display-report`; suites `display-test.ps1` (headless) and
+`verify-displays.ps1` (end to end). **Run 2026-10-16:** 32 headless assertions and 14 end-to-end checks,
+0 failed (rows 2->1 and 1->2 on a scripted change, a posted real `WM_DISPLAYCHANGE` re-reading the
+desktop, the probe seeing no value change), with every standing suite re-run green after the rollback
+below. **The finding is the hook:** `Theming.Bind` calls `EnsureHandle()` in the surface's constructor,
+so `SourceInitialized` has already fired before `Program` subscribes - a hook added there never runs,
+which is why the first run saw no re-read and why **EXP09's own re-place hook has been inert all along**;
+EXP14 adds its hook on the spot. The second symptom the user raised - the surface opening on the wrong
+screen - was attempted as a pointer-driven placement, driven, then **rolled back** the same day (it
+opened in a monitor's `0,0` and did not follow the user between monitors); `SystemPlacement`,
+`PlacementApp` and `Placement` are restored to EXP09, and issue 2 becomes its own experiment with the
+recommendation to try a *remembered* screen (persisted, mouse-free).

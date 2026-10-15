@@ -12,7 +12,7 @@ only the user declares the final status.
 | EXP05 | Bring brightness to life: real detection + real writes on the surface | success | EXP05 | 2026-10-15 | 2026-10-15 | [experiments/EXP05/README.md](experiments/EXP05/README.md) |
 | EXP06 | Apply the night-light schedule (scheduler FSM + real monitors) | success | EXP06 | 2026-10-15 | 2026-10-15 | [experiments/EXP06/README.md](experiments/EXP06/README.md) |
 | EXP07 | Persist the schedule settings (a file behind the window) | success | EXP07 | 2026-10-15 | 2026-10-15 | [experiments/EXP07/README.md](experiments/EXP07/README.md) |
-| EXP08 | Dark mode: the app's windows follow the Windows app theme | inProg | EXP08 | 2026-10-15 | - | [experiments/EXP08/README.md](experiments/EXP08/README.md) |
+| EXP08 | Dark mode: the app's windows follow the Windows app theme | success | EXP08 | 2026-10-15 | 2026-10-15 | [experiments/EXP08/README.md](experiments/EXP08/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -96,3 +96,29 @@ corrupt file starts on the defaults; and the surface's own gear writes the same 
 stay out of scope (they need identity); the real per-user file was never created by any run.
 Recommend **EXP08 = the tray shell + autostart** (which also decides what closing does), then real
 sunset/sunrise by location, then per-monitor profiles.
+
+**EXP08:** `success` (user-declared). Dark mode, as the app's own UI theme rather than a monitor
+feature: the user declared it, so it displaced the tray shell for one experiment. The light palette
+was duplicated in `Program.cs` and `SettingsWindow.cs`; `Theme.cs` is now the one palette (two pure
+models - the colors as plain `0xAARRGGBB`, and the rule that turns *what Windows says* plus *what the
+user asked for* into light or dark), `SystemTheme.cs` reads `AppsUseLightTheme`, follows a colour-set
+change live through a `WM_SETTINGCHANGE` hook, and asks DWM (`DwmSetWindowAttribute(20)`) for a dark
+title bar, and `Theming.cs` paints a window from shared mutable brushes plus a template each for the
+controls whose look the OS theme owns. **Run 2026-10-15:** 34 headless assertions and 42 end-to-end
+checks, with the regressions green (38 / 19 / 114 / 42 headless; 30 / 11 / 25 / 27 end to end). The
+claim is asserted on **rendered pixels**, not a screenshot - UI Automation cannot see color, so
+`--theme-report` renders each window and samples named regions of the real visual tree - and the same
+report with `--theme-no-templates` is the baseline that *measures* the hypothesis: a pure brush swap
+leaves the Slider's track and the CheckBox/RadioButton marks light (0.43 / 0.36 / 0.29 of pixels)
+while a TextBox's and a Button's face already go dark from a property assignment. Two defects were
+found only by driving it: a brush used as a `Setter` value in a sealed `ControlTemplate` is frozen,
+so the first live switch crashed; and a report written in the same dispatcher turn rendered the
+pre-change tree. Boundaries: only this app's controls were templated (no ComboBox/ScrollBar/ListBox),
+high contrast is unaudited, `WM_SETTINGCHANGE` arriving from Windows itself was not observed (the
+live path was driven through an injected OS reading), the light *look* is not byte-identical to
+pre-EXP08 because four control kinds are now drawn by our templates, and nothing is persisted - the
+theme follows the OS. `verify-schedule.ps1` was also given a temp settings file, the same correction
+EXP07 made to `verify-settings.ps1`, because an inherited `gradualFade=false` made its fade phase
+unobservable. Recommend **EXP09 = the tray shell + autostart** (still the standing step), then a
+stored `theme=` preference plus a switch in the settings window - small now - then real
+sunset/sunrise, then per-monitor profiles.

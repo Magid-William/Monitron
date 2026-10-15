@@ -165,44 +165,77 @@ and one `Changed` event already exist), and are the natural follow-on if the OS-
 not enough.
 
 ## Conclusion (findings)
-_Pending: the run's findings are above; the user declares the status._
+**`success`** (2026-10-15, user-declared). The user asked to investigate dark mode; the app's own
+two windows now follow the Windows app theme, both light and dark, with a dark title bar - driven
+and asserted, not described.
+
+What this settles:
+- **One palette is now the source of truth.** The light palette was duplicated in `Program.cs` and
+  `SettingsWindow.cs`; both read `Theme.cs` now, and the app follows the OS (`AppsUseLightTheme`)
+  or a pinned mode.
+- **The hypothesis holds, with a refinement worth keeping.** Only the Slider's track and the
+  CheckBox/RadioButton marks resist a pure brush swap (0.43 / 0.36 / 0.29 of their pixels still
+  light under a dark palette); a TextBox's face and a Button's face *do* follow a property
+  assignment, and what the Button keeps is its border and its hover/pressed shine. The measured
+  table is in Results above.
+- **The theme claim is asserted by rendered pixels.** UI Automation cannot see color, so the
+  experiment added its own witness: render the window, locate each region through that element's
+  transform, sample it - plus `--theme-no-templates` as the baseline that makes "a template was
+  needed here" a number instead of an opinion.
+- **Following the OS works live.** `auto` resolved from an injected OS reading, and a scripted
+  colour-set change re-resolved dark in place, pixels included, without touching the user's real
+  Windows theme. The DWM attribute 20 call is real and read back as 1/0.
+- **Nothing else moved.** 38 / 19 / 114 / 42 headless and 30 / 11 / 25 / 27 end to end all pass;
+  the re-templated slider still drives the monitor, a scripted night still runs, the settings file
+  still round-trips, and no run wrote to a monitor or to the real settings file.
+
+What it deliberately does not settle - the boundary of this experiment:
+- **Only this app's controls.** There is no ComboBox, ScrollBar, ListBox or Menu in it, so none were
+  templated; a control added later brings its own template and its own probe.
+- **High contrast is not asserted.** The theme sets colors and leaves the OS's high-contrast drawing
+  alone, but the palettes were not chosen against a high-contrast theme.
+- **`WM_SETTINGCHANGE` was not observed arriving from Windows.** The live *re-application* was driven
+  through the injected reading (the clock's analogue); the broadcast that calls it is wired but
+  unexercised, because changing the user's real theme is not a verifier's to do.
+- **Nothing is persisted and there is no switch.** The theme follows the OS; `--theme` is a
+  verification seam, and `settings.ini` was not touched.
+- **The light look is not byte-identical to before.** Every light color is the EXP03 one, but the
+  four templated control kinds are now drawn by our templates instead of the OS's, so their shapes
+  and focus/hover states differ slightly. That is the price of a code-only theme.
+
+Next, in the order the seams suggest: the **tray shell + autostart** (the overview's standing step),
+then a stored `theme=` preference plus a switch in the settings window - small now that one palette
+and one `Changed` event exist - then real sunset/sunrise by location, then per-monitor profiles and
+identity that survives reconnect (`docs/prior-art/apis-and-identity.md`).
+
+Evidence: the commands above; the per-case reports and PNGs in `%TEMP%\monitorn-exp08\reports`.
 
 ## Learnings
-- `src\Monitorn.App\theme-test.ps1` (headless, 34) and `src\Monitorn.App\verify-theme.ps1`
-  (end to end, 42) - run them whenever a color, the resolution rule, a control template or the
-  report's probes change. The verifier needs `src\probe\probe.exe` for the "no monitor write" check.
-- A brush used as a **`Setter` value inside a `ControlTemplate` is frozen when the template is
-  sealed**; mutating its `Color` then throws `InvalidOperationException` at the next theme change.
-  Use a private copy for anything a template references and rebuild the templates on a switch
-  (`ThemeBrushes.Equip` drops them), and keep the mutable shared brushes only for values assigned
-  directly to elements. That combination is what makes a live theme switch possible at all.
-- A `Track` cannot be built with `FrameworkElementFactory`: its `Thumb`, `IncreaseRepeatButton` and
-  `DecreaseRepeatButton` are plain CLR properties, not dependency properties. Keep the OS `Slider`
-  template and re-template the parts it already has, found with
-  `slider.Template.FindName("PART_Track", slider)` after `ApplyTemplate()`.
-- Required template parts, or the control is blank/broken: `Slider` -> a `Track` named
-  `PART_Track`; `TextBox` -> a `ScrollViewer` named `PART_ContentHost`. `Track`'s `Minimum`,
-  `Maximum`, `Value` and `IsDirectionReversed` are *not* inherited, so bind them to the templated
-  parent.
-- `RenderTargetBitmap` on a shown `Window` works, and `element.TransformToAncestor(theSameVisual)`
-  gives coordinates in that same space - render and measure against one visual and the two cannot
-  disagree. Take the shot **after** the layout/render for a change:
-  `Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, ...)`; in the same dispatcher turn as a
-  template change it renders the old tree (controls missing).
-- `--theme-no-templates` is the measurement seam: it applies the palette and the property-level
-  control colors but installs no templates, which is how "what a brush swap alone reaches" is
-  asserted rather than argued. `--os-theme` injects the OS reading so `auto` and a live switch can
-  be driven without changing the user's real Windows theme.
-- A verification run that inherits the user's persisted settings is not deterministic. Read a theme
-  report with `--settings-file` pointing at a **fresh temp file**: with the user's real file, whose
-  schedule was off, the settings body renders *disabled* and the OS paints its own disabled control
-  colors - the text box read as white in a dark theme and looked like a bug. (The same class of
-  mistake is why `verify-schedule.ps1` had to be given a temp settings file here.)
-- The OS `TextBox`/`Button` templates *do* follow `Background`, `BorderBrush` and `Foreground`; a
-  probe that set `Background=Red` rendered `#FF0000` with a lime border. The `Button` template
-  overlays its own shine and border (`#FD7300` on red, `#707070` border), which is why the face
-  recolors but the chrome does not.
-- DWM's dark title bar is `DwmSetWindowAttribute(hwnd, 20, 1)` (attribute 19 before Windows 10
-  20H1), needs only `new WindowInteropHelper(window).EnsureHandle()` - no showing - and is readable
-  back with `DwmGetWindowAttribute(hwnd, 20, ...)` so it can be asserted.
+- `src\Monitorn.App\theme-test.ps1` (34, headless) and `src\Monitorn.App\verify-theme.ps1` (42, end
+  to end, needs `src\probe\probe.exe`) - run them whenever a color, the resolution rule, a control
+  template or the report's probes change.
+- A brush used as a **`Setter` value inside a `ControlTemplate` is frozen when the template seals**;
+  mutating it later throws. Give templates private brush copies and rebuild them on a switch
+  (`ThemeBrushes.Equip` drops them); keep mutable shared brushes only for values assigned directly
+  to elements. That pairing is what makes a live theme switch possible.
+- A `Track` cannot be built with `FrameworkElementFactory` (its `Thumb` and repeat buttons are plain
+  CLR properties). Keep the OS `Slider` template and re-template its parts via
+  `slider.Template.FindName("PART_Track", slider)`; bind `Minimum`/`Maximum`/`Value`/
+  `IsDirectionReversed` to the templated parent, or the thumb will not move.
+- Required template parts: `Slider` -> a `Track` named `PART_Track`; `TextBox` -> a `ScrollViewer`
+  named `PART_ContentHost`.
+- `RenderTargetBitmap` on a shown `Window` works, and `element.TransformToAncestor(thatSameVisual)`
+  gives coordinates in the space you rendered. Take the shot after the change's layout/render
+  (`DispatcherPriority.ContextIdle`) or you capture the previous tree; a screenshot taken in the
+  same dispatcher turn showed controls missing.
+- `--theme-no-templates` is the measurement baseline (palette and property colors, no templates);
+  `--os-theme` injects the OS reading so `auto` and a live switch are drivable without changing the
+  user's real theme. Read a theme report with `--settings-file` on a **fresh temp file**: an
+  inherited disabled body makes the OS paint its own disabled control colors, which reads as a bug.
+- The OS `TextBox`/`Button` templates *do* follow `Background`/`BorderBrush`/`Foreground` (a red
+  probe box rendered `#FF0000` with a lime border); the `Button` overlays a shine and its own border
+  (`#FD7300`, border `#707070`), which is why its face recolors but its chrome does not.
+- DWM's dark title bar is `DwmSetWindowAttribute(hwnd, 20, 1)` (19 before Windows 10 20H1), needs
+  only `new WindowInteropHelper(window).EnsureHandle()`, and reads back with
+  `DwmGetWindowAttribute(hwnd, 20, ...)` so it can be asserted.
 

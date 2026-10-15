@@ -17,6 +17,7 @@ only the user declares the final status.
 | EXP10 | Raise the brightness regressions to N displays | success | EXP10 | 2026-10-15 | 2026-10-15 | [experiments/EXP10/README.md](experiments/EXP10/README.md) |
 | EXP11 | The tray shell: notification-area icon, Run on Windows startup, Quit | success | EXP11 | 2026-10-15 | 2026-10-15 | [experiments/EXP11/README.md](experiments/EXP11/README.md) |
 | EXP12 | The app icon: the neon-green logo, as the app's one multi-size .ico | success | EXP12 | 2026-10-15 | 2026-10-15 | [experiments/EXP12/README.md](experiments/EXP12/README.md) |
+| EXP13 | The slider knob: a click lands where you clicked | inProg | EXP13 | 2026-10-15 | - | [experiments/EXP13/README.md](experiments/EXP13/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was

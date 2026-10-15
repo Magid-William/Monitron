@@ -20,6 +20,12 @@
 // with FrameworkElementFactory at all. The OS template's Track is kept, and only its three parts are
 // re-templated, found by the name the Slider itself looks up (PART_Track).
 //
+// EXP13 measured the keyboard-focus cue and left it out of this file on purpose: WPF's own
+// FocusVisualStyle ring is real but Windows only draws it for a user who has just typed
+// (KeyboardNavigation.AlwaysShowFocusVisual is latched from SystemParameters.KeyboardCues at process
+// start, and that is false for a mouse user), so the cue that ships is the row's own edge, set where
+// the row is built (Program.cs).
+//
 // C# 5 only - the in-box csc.exe is what builds this.
 
 using System.Collections.Generic;

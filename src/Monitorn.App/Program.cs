@@ -19,6 +19,10 @@
 // EXP12 - and the app's own icon: the designed logo.svg, generated into a nine-frame Monitorn.ico and
 //         embedded in the exe (IconAssets.cs), for the exe, the window and the tray. --icon-report is
 //         its verification seam; the logo is never edited here, it is an input.
+// EXP13 - and the row's slider made reachable: a press on the track lands on the press rather than
+//         one LargeChange away from it (WPF's move-to-point), the slider carries its display's name
+//         for a screen reader, and its row shows where the keyboard is - the row's edge takes the
+//         accent while that row's slider has the focus. verify-slider.ps1 drives all three.
 //
 // One row per ACTIVE display: its real name, its real current brightness on a slider, and a gear
 // that opens the settings window (EXP04). Dragging a slider is debounced by BrightnessWriter and
@@ -176,6 +180,10 @@ namespace Monitorn.App
                 LargeChange = 10,
                 TickFrequency = 1,
                 IsSnapToTickEnabled = true,
+                // EXP13: a press on the track lands on the press, not one LargeChange away from it.
+                // WPF's own move-to-point: the thumb goes to the point, snapped to the tick and
+                // clamped at the ends, and a press on the thumb itself is left to the drag.
+                IsMoveToPointEnabled = true,
                 IsEnabled = monitor.Max > monitor.Min,
                 Margin = new Thickness(0, 8, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
@@ -186,6 +194,10 @@ namespace Monitorn.App
             // display - and to the WMI instance it must read to witness an internal panel - without
             // guessing by position or by a value that two rows could share (EXP10).
             System.Windows.Automation.AutomationProperties.SetAutomationId(slider, monitor.Id);
+            // EXP13: a slider with no name is announced as just "slider, 57". The gear beside it
+            // already names itself; this one names the display it drives (the id above is for a
+            // verifier, this name is for a person).
+            System.Windows.Automation.AutomationProperties.SetName(slider, monitor.DisplayName + " brightness");
             // True while the slider is being moved by a write's outcome rather than by the user:
             // assigning Value raises ValueChanged, and that must not be mistaken for a drag - the
             // schedule would read its own move as the user taking over and stand down for the night.
@@ -252,7 +264,7 @@ namespace Monitorn.App
             grid.Children.Add(column);
             grid.Children.Add(gear);
 
-            return new Border
+            var card = new Border
             {
                 Child = grid,
                 Background = t.RowFill,
@@ -262,6 +274,19 @@ namespace Monitorn.App
                 Padding = new Thickness(12, 10, 10, 12),
                 Margin = new Thickness(0, 0, 0, 10),
             };
+
+            // EXP13: the row shows where the keyboard is. WPF's own cue is FocusVisualStyle, and
+            // Windows draws it only for a user who has just typed - its AlwaysShowFocusVisual is
+            // latched from the keyboard-cues setting when the process starts, and that setting is
+            // off for anyone using the mouse - so the cue is ours: the row's edge takes the accent
+            // while this row's slider has the keyboard. The gear beside it shows focus its own way,
+            // from the template in Theming.cs.
+            slider.IsKeyboardFocusWithinChanged += delegate
+            {
+                card.BorderBrush = slider.IsKeyboardFocusWithin ? t.Accent : t.RowEdge;
+            };
+
+            return card;
         }
     }
 

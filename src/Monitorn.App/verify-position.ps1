@@ -46,6 +46,8 @@ public static class WinExp09 {
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst=32)] public string szDevice;
     }
     public delegate bool EnumProc(IntPtr h, IntPtr l);
+    public delegate bool MonitorProc(IntPtr m, IntPtr hdc, ref RECT r, IntPtr d);
+    [DllImport("user32.dll")] public static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorProc cb, IntPtr data);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string win);
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr l);
@@ -147,6 +149,29 @@ function MonitorRead([IntPtr]$h) {
     }
 }
 
+# Every display, so a section can inject another one's work area (and then check the window really
+# landed there).
+function Monitors() {
+    $script:monitorList = New-Object System.Collections.ArrayList
+    $cb = [WinExp09+MonitorProc] {
+        param($m, $hdc, $r, $d)
+        $mi = New-Object WinExp09+MONITORINFOEX
+        $mi.cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($mi)
+        if ([WinExp09]::GetMonitorInfo($m, [ref]$mi)) {
+            $x = [uint32]0; $y = [uint32]0
+            [void][WinExp09]::GetDpiForMonitor($m, 0, [ref]$x, [ref]$y)
+            [void]$script:monitorList.Add([pscustomobject]@{
+                Handle = $m; Device = $mi.szDevice
+                Full = Box $mi.rcMonitor.Left $mi.rcMonitor.Top $mi.rcMonitor.Right $mi.rcMonitor.Bottom
+                Work = Box $mi.rcWork.Left $mi.rcWork.Top $mi.rcWork.Right $mi.rcWork.Bottom
+                Dpi = [double]$x })
+        }
+        return $true
+    }
+    [void][WinExp09]::EnumDisplayMonitors([IntPtr]::Zero, [IntPtr]::Zero, $cb, [IntPtr]::Zero)
+    return $script:monitorList
+}
+
 function Title([IntPtr]$h) {
     $sb = New-Object System.Text.StringBuilder 512
     [void][WinExp09]::GetWindowText($h, $sb, $sb.Capacity)
@@ -167,7 +192,10 @@ function TaskbarFor([IntPtr]$monitor) {
     $found = [IntPtr]::Zero
     $cb = [WinExp09+EnumProc] {
         param($h, $l)
-        if (ClassName $h -eq 'Shell_SecondaryTrayWnd' -and [WinExp09]::MonitorFromWindow($h, 2) -eq $monitor) {
+        # The class into a variable first: `ClassName $h -eq 'X'` binds -eq as a parameter name of
+        # ClassName, not as a comparison, and silently matches nothing.
+        $class = ClassName $h
+        if ($class -eq 'Shell_SecondaryTrayWnd' -and [WinExp09]::MonitorFromWindow($h, 2) -eq $monitor) {
             $script:foundBar = $h
             return $false
         }
@@ -304,6 +332,11 @@ function ShotRegion([string]$path, $box) {
     return ("{0}x{1}" -f $w, $h)
 }
 
+# The evidence is the corner, not the whole desktop: the flyout with the taskbar strip and the clock
+# under it, and - for the baseline - the window where Windows put it and nothing else.
+function CornerBox($mon) { return Box ($mon.Full.R - 900) ($mon.Full.B - 720) $mon.Full.R $mon.Full.B }
+function GrowBox($box, [double]$by) { return Box ($box.L - $by) ($box.T - $by) ($box.R + $by) ($box.B + $by) }
+
 # --- the independent witness for "nothing was touched" ---
 
 function ProbeRead {
@@ -391,8 +424,7 @@ $fromBottom = $mon.Work.B - $placed.B
 Note "clearance: $fromRight px from the work area's right edge, $fromBottom px above its bottom (= the 8 dip margin at $dpi dpi)"
 Check ($fromRight -le 30 -and $fromBottom -le 30) "both clearances are the 8 dip margin, not a coincidence"
 
-[void](ShotRegion (Join-Path $ShotDir '01-placed.png') `
-    (Box ($mon.Full.R - 780) ($mon.Full.B - 720) $mon.Full.R $mon.Full.B))
+[void](ShotRegion (Join-Path $ShotDir '01-placed.png') (CornerBox $mon))
 
 # ---------------------------------------------------------------------------
 Write-Host "`n== the settings window the gear opens stays on screen too =="
@@ -422,7 +454,7 @@ if ($gear.Count -ge 1) {
         } else {
             Note "centring on the owner happened to fit, so the clamp had nothing to do here"
         }
-        [void](ShotRegion (Join-Path $ShotDir '02-settings.png') $mon.Full)
+        [void](ShotRegion (Join-Path $ShotDir '02-settings.png') (CornerBox $mon))
         [void][WinExp09]::PostMessage($sh, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)   # WM_CLOSE
         Start-Sleep -Milliseconds 600
     }
@@ -439,7 +471,7 @@ Note "unplaced, the window is $(Str $cascade) instead of $(Str $placed)"
 Check ($null -ne $cascade) "the unplaced window is readable"
 Check ([Math]::Abs($cascade.L - $placed.L) -gt 50 -or [Math]::Abs($cascade.T - $placed.T) -gt 50) "it sits somewhere else - the placement changes something"
 Check (([Math]::Abs($cascade.R - $mon.Work.R) -gt 100) -or ([Math]::Abs($cascade.B - $mon.Work.B) -gt 100)) "and it is not in the flyout corner"
-[void](ShotRegion (Join-Path $ShotDir '03-baseline.png') $mon.Full)
+[void](ShotRegion (Join-Path $ShotDir '03-baseline.png') (GrowBox $cascade 24))
 StopApp $before
 
 # ---------------------------------------------------------------------------
@@ -524,12 +556,68 @@ if ($narrowGear.Count -ge 1) {
         Check ($centred.R -gt $mon.Work.R + 1) "centring on the narrow owner would hang $( [int]($centred.R - $mon.Work.R) ) px off the right edge"
         Check (Inside $narrowSettings $mon.Work 1) "the window is inside the work area anyway"
         Check (SameBox $narrowSettings (ClampBox $centred $mon.Work) 2) "and it is exactly where the clamp puts it, not where centring did"
-        [void](ShotRegion (Join-Path $ShotDir '04-narrow-settings.png') $mon.Full)
+        [void](ShotRegion (Join-Path $ShotDir '04-narrow-settings.png') (CornerBox $mon))
         [void][WinExp09]::PostMessage($nh, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)   # WM_CLOSE
         Start-Sleep -Milliseconds 600
     }
 }
 StopApp $narrow
+
+# ---------------------------------------------------------------------------
+Write-Host "`n== a work area that changes while the window runs re-places it =="
+
+# The window is up for 4 s on the real work area, then the reading changes under it - the same
+# re-place a WM_SETTINGCHANGE from Windows calls, without moving the user's taskbar. (The message
+# itself is wired but not injected here: moving a real taskbar is not a verifier's to do.)
+$live = Launch 'the work area shrinks 4 s in (--place-after)' "--place-work $([int]$mon.Work.L),$([int]$mon.Work.T),$([int]$mon.Work.R),$([int]$mon.Work.B) --place-after 4 0,0,$([int]$mon.Full.R),$([int]$mon.Work.B - 120) --place-report `"$ReportRoot\live`""
+$liveBefore = UiaRect (Element $live.Hwnd)
+Note "at 1.6 s it is $(Str $liveBefore)"
+Check (SameBox $liveBefore $placed 2) "it started at the same corner as an unscripted run"
+Start-Sleep -Milliseconds 3600   # past the 4 s change
+$liveAfter = UiaRect (Element $live.Hwnd)
+$liveReport = Require (Join-Path $ReportRoot 'live') 'the live work-area change'
+Note "after the change it is $(Str $liveAfter), and the report says workArea=$(Str (ParseBox $liveReport['workArea'])) corner=$(Str (ParseBox $liveReport['computed']))"
+Check ([Math]::Abs(($liveBefore.B - $liveAfter.B) - 120) -lt 6) `
+    "it moved up by the 120 px the work area gave back ($($liveBefore.B) -> $($liveAfter.B))"
+Check ([Math]::Abs($liveAfter.B - ($mon.Work.B - 120 - $marginPx)) -lt 12) `
+    "and its bottom edge is the margin above the new work area edge"
+Check (SameBox (ParseBox $liveReport['workArea']) (Box 0 0 $mon.Full.R ($mon.Work.B - 120)) 0.5) `
+    "the report carries the new work area, not the one it started with"
+Check (Inside $liveAfter (Box $mon.Work.L $mon.Work.T $mon.Work.R ($mon.Work.B - 120)) 1) `
+    "the window is inside the new work area"
+[void](ShotRegion (Join-Path $ShotDir '05-live-change.png') (CornerBox $mon))
+StopApp $live
+
+# ---------------------------------------------------------------------------
+Write-Host "`n== the second display's own work area and taskbar =="
+
+$allDisplays = Monitors
+$others = @($allDisplays | Where-Object { $_.Device -ne $mon.Device })
+if ($others.Count -eq 0) {
+    Note "there is only one display on this machine, so there is no second work area to prove"
+} else {
+    $second = $others[0]
+    Note "the other display: $($second.Device) full $(Str $second.Full) work $(Str $second.Work) dpi $($second.Dpi)"
+    $app2 = Launch "placed into $($second.Device)'s work area" "--place-work $([int]$second.Work.L),$([int]$second.Work.T),$([int]$second.Work.R),$([int]$second.Work.B) --place-report `"$ReportRoot\second`""
+    $rect2 = UiaRect (Element $app2.Hwnd)
+    $mon2 = MonitorRead $app2.Hwnd
+    $bar2 = TaskbarFor $mon2.Handle
+    $bar2Rect = if ($bar2 -ne [IntPtr]::Zero) { W32Rect $bar2 } else { $null }
+    Note "the window is now on $($mon2.Device) at $(Str $rect2)"
+    Note "that display's taskbar is $(if ($bar2Rect) { (Str $bar2Rect) + ' (' + (ClassName $bar2) + ')' } else { 'not found' })"
+    Check ($mon2.Device -eq $second.Device) "the window really is on the other display, at a negative origin"
+    Check (SameBox $mon2.Work $second.Work 1) "and its work area is the one that was injected"
+    Check (Inside $rect2 $mon2.Work 1) "the surface is inside it"
+    Check ($rect2.R -le $mon2.Work.R + 1 -and $rect2.R -ge $mon2.Work.R - 30) "right-aligned to that display's work area"
+    if ($bar2Rect) {
+        Check (-not (Overlaps $rect2 $bar2Rect 1)) "and clear of that display's own taskbar"
+        Check ($rect2.B -le $bar2Rect.T + 1) "with its bottom edge above it ($($rect2.B) <= $($bar2Rect.T))"
+    } else {
+        Note "no taskbar window was found on the other display, so its taskbar was not checked"
+    }
+    [void](ShotRegion (Join-Path $ShotDir '06-second-display.png') (CornerBox $second))
+    StopApp $app2
+}
 
 # ---------------------------------------------------------------------------
 Write-Host "`n== nothing else moved =="

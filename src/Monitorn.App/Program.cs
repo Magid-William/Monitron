@@ -286,6 +286,8 @@ namespace Monitorn.App
             double? placeDpi = null;         // --place-dpi N: as if the monitor scaled differently
             PlacementBox? placeWork = null;  // --place-work L,T,R,B: as if the work area were this (pixels)
             string placeReportDir = null;    // --place-report <dir>: the reading and the computed rectangle
+            TimeSpan? placeAfter = null;     // --place-after <sec> L,T,R,B: a work-area change while it runs
+            PlacementBox placeAfterWork = PlacementBox.Empty;
 
             for (int i = 0; i < args.Length; i++)
             {
@@ -332,6 +334,12 @@ namespace Monitorn.App
                     placeWork = box;
                 }
                 else if (a == "--place-report" && i + 1 < args.Length) placeReportDir = args[++i];
+                else if (a == "--place-after" && i + 2 < args.Length)
+                {
+                    placeAfter = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
+                    if (!PlacementGeometry.TryParseBox(args[++i], out placeAfterWork))
+                        throw new ArgumentException("--place-after takes a number of seconds and L,T,R,B in whole pixels");
+                }
             }
 
             var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
@@ -417,10 +425,26 @@ namespace Monitorn.App
             if (place)
             {
                 var placeScript = new PlacementScript { Edge = placeEdge, Dpi = placeDpi, WorkArea = placeWork };
-                Func<IntPtr, PlacementReading> placementReading = placeScript.Any
-                    ? (Func<IntPtr, PlacementReading>)delegate(IntPtr hwnd) { return placeScript.Apply(SystemPlacement.Read(hwnd)); }
-                    : SystemPlacement.Read;
-                Place.Attach(window, placementReading, placeMargin, placeReportDir);
+                Func<IntPtr, PlacementReading> placementReading = SystemPlacement.Read;
+                if (placeScript.Any || placeAfter.HasValue)
+                {
+                    placementReading = delegate(IntPtr hwnd) { return placeScript.Apply(SystemPlacement.Read(hwnd)); };
+                }
+                Action replace = Place.Attach(window, placementReading, placeMargin, placeReportDir);
+
+                if (placeAfter.HasValue)
+                {
+                    // The work area changing under a running window, driven: the same re-place a
+                    // WM_SETTINGCHANGE from Windows would call, on a clock like --now's.
+                    DispatcherTimer move = new DispatcherTimer { Interval = placeAfter.Value };
+                    move.Tick += delegate
+                    {
+                        move.Stop();
+                        placeScript.WorkArea = placeAfterWork;   // the reading changes, and the window must follow it
+                        replace();
+                    };
+                    move.Start();
+                }
             }
 
             // A real edit is written to the file at once; a failed write is surfaced on the status

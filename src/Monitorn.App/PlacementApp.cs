@@ -27,8 +27,9 @@ namespace Monitorn.App
         /// Attach the flyout placement to a window. <paramref name="read"/> is the OS reading, injectable
         /// so a verifier can drive a different taskbar edge, DPI or work area without moving the user's
         /// taskbar. <paramref name="reportDir"/>, when set, gets the reading and the computed rectangle.
+        /// Returns the placement itself, so a scripted change can re-run exactly what a message does.
         /// </summary>
-        public static void Attach(Window window, Func<IntPtr, PlacementReading> read, double margin, string reportDir)
+        public static Action Attach(Window window, Func<IntPtr, PlacementReading> read, double margin, string reportDir)
         {
             // Manual is what makes Left/Top ours: the WPF default would centre or cascade over them.
             window.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -38,6 +39,7 @@ namespace Monitorn.App
             window.Loaded += delegate { apply(); };
             window.SizeChanged += delegate { apply(); };   // SizeToContent: the height arrives late, and a resize must not walk off the corner
             Follow(window, apply);
+            return apply;
         }
 
         /// <summary>Keep a window inside its monitor's work area without resizing it (the settings window).</summary>

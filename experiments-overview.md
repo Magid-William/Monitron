@@ -11,6 +11,7 @@ only the user declares the final status.
 | EXP04 | Dummy "Schedule night light" settings window, UI only | success | EXP04 | 2026-10-15 | 2026-10-15 | [experiments/EXP04/README.md](experiments/EXP04/README.md) |
 | EXP05 | Bring brightness to life: real detection + real writes on the surface | success | EXP05 | 2026-10-15 | 2026-10-15 | [experiments/EXP05/README.md](experiments/EXP05/README.md) |
 | EXP06 | Apply the night-light schedule (scheduler FSM + real monitors) | success | EXP06 | 2026-10-15 | 2026-10-15 | [experiments/EXP06/README.md](experiments/EXP06/README.md) |
+| EXP07 | Persist the schedule settings (a file behind the window) | inProg | EXP07 | 2026-10-15 | - | [experiments/EXP07/README.md](experiments/EXP07/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -61,6 +62,12 @@ claim rests on an outside witness rather than a screenshot, and the first to pro
 `IBrightnessController` seam. The internal-WMI path is implemented but not exercised (no internal
 *active* target on this machine). Nothing is persisted and no schedule is applied - the schedule was
 the next experiment, which branched off this tip and kept this actuator.
+
+**EXP07 (`inProg`, 2026-10-15):** the sixth experiment's first follow-on. Persists the six schedule
+settings (switch, strength, gradual fade, mode, turn-on, turn-off) into
+`%APPDATA%\Monitorn\settings.ini` - loaded at launch, saved on each edit - so the schedule survives a
+restart; monitor state and per-monitor profiles stay out of scope (they need identity). Open
+questions carry proposed defaults in the record, adopted unless the user says otherwise.
 
 **EXP06:** `success`. Applies the schedule EXP02→05 kept deferring. `NightLightScheduler`
 (`Schedule.cs`) derives its phase from an injected clock - day, fade in, night, fade out - fades

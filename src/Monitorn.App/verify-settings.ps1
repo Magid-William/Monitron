@@ -15,11 +15,20 @@ param(
     [string]$Exe = (Join-Path (Split-Path -Parent $PSCommandPath) 'Monitorn.App.exe'),
     [string]$AppArgs = '--settings',
     [string]$ShotDir = (Join-Path $env:TEMP 'monitorn-exp04'),
+    # EXP07: the app now persists settings. Driving this window edits the model, which would write
+    # the user's real %APPDATA%\Monitorn\settings.ini - so the verifier runs on a temp file it
+    # deletes first, which also makes the defaults this script asserts on deterministic.
+    [string]$SettingsFile = (Join-Path $env:TEMP 'monitorn-exp04\state\settings.ini'),
     [switch]$FromGear
 )
 
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path $ShotDir)) { [void](New-Item -ItemType Directory -Path $ShotDir) }
+
+$settingsDir = Split-Path -Parent $SettingsFile
+if ($settingsDir -and -not (Test-Path $settingsDir)) { [void](New-Item -ItemType Directory -Path $settingsDir) }
+if (Test-Path $SettingsFile) { Remove-Item $SettingsFile -Force }
+$launchArgs = "$AppArgs --settings-file `"$SettingsFile`""
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
@@ -213,7 +222,7 @@ function ToggleState($name) {
 
 # --- launch ---
 
-$p = Start-Process -FilePath $Exe -ArgumentList $AppArgs -PassThru
+$p = Start-Process -FilePath $Exe -ArgumentList $launchArgs -PassThru
 $h = [IntPtr]::Zero
 for ($i = 0; $i -lt 60; $i++) {
     Start-Sleep -Milliseconds 250

@@ -43,6 +43,19 @@ namespace Monitorn.App
         public TimeSpan TurnOn { get; private set; }
         public TimeSpan TurnOff { get; private set; }
 
+        /// <summary>
+        /// Raised after a transition that actually changed the state - never for a refused value
+        /// (an out-of-range strength, a bad clock) and never for a no-op set of the value already
+        /// held. EXP07's persistence seams onto this, so a write cannot be triggered by the window
+        /// re-rendering itself with the value it already has.
+        /// </summary>
+        public event Action Changed;
+
+        private void RaiseChanged()
+        {
+            if (Changed != null) Changed();
+        }
+
         // --- derived: exactly what the window enables, per feature state and mode ---
         public bool BodyEnabled { get { return Enabled; } }
 
@@ -77,13 +90,27 @@ namespace Monitorn.App
         public string TurnOffText { get { return FormatTime(TurnOff); } }
 
         // --- transitions ---
-        public void SetEnabled(bool on) { Enabled = on; }
+        public void SetEnabled(bool on)
+        {
+            if (Enabled == on) return;
+            Enabled = on;
+            RaiseChanged();
+        }
 
-        public void ToggleEnabled() { Enabled = !Enabled; }
+        public void ToggleEnabled() { SetEnabled(!Enabled); }
 
-        public void ToggleGradualFade() { GradualFade = !GradualFade; }
+        public void ToggleGradualFade()
+        {
+            GradualFade = !GradualFade;
+            RaiseChanged();
+        }
 
-        public void SetMode(ScheduleMode mode) { Mode = mode; }
+        public void SetMode(ScheduleMode mode)
+        {
+            if (Mode == mode) return;
+            Mode = mode;
+            RaiseChanged();
+        }
 
         /// <summary>Strength is an integer percent; anything unparsable is refused and the old value kept.</summary>
         public bool TrySetStrength(string text)
@@ -92,7 +119,9 @@ namespace Monitorn.App
             if (text == null) return false;
             if (!int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value)) return false;
             if (value < StrengthMin || value > StrengthMax) return false;
+            if (Strength == value) return true;      // accepted, but nothing changed
             Strength = value;
+            RaiseChanged();
             return true;
         }
 
@@ -100,7 +129,9 @@ namespace Monitorn.App
         {
             TimeSpan value;
             if (!TryClock(hour12, minute, pm, out value)) return false;
+            if (TurnOn == value) return true;
             TurnOn = value;
+            RaiseChanged();
             return true;
         }
 
@@ -108,7 +139,9 @@ namespace Monitorn.App
         {
             TimeSpan value;
             if (!TryClock(hour12, minute, pm, out value)) return false;
+            if (TurnOff == value) return true;
             TurnOff = value;
+            RaiseChanged();
             return true;
         }
 

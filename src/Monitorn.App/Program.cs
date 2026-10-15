@@ -1,6 +1,7 @@
 // EXP05 - Monitorn per-monitor control surface, now with the brightness functionality alive.
 // EXP06 - and the night-light schedule applied: the surface drives real monitors, and the schedule
 //         fades them down to the strength at turn-on and gives the previous value back at turn-off.
+// EXP07 - and the schedule's settings persisted, so a restart keeps them (SettingsPersistence.cs).
 //
 // One row per ACTIVE display: its real name, its real current brightness on a slider, and a gear
 // that opens the settings window (EXP04). Dragging a slider is debounced by BrightnessWriter and
@@ -11,7 +12,8 @@
 // settings object the window edits. The tick only asks it what it wants and hands that to the
 // writer, which is why a drag and a fade share one actuator.
 //
-// Nothing is persisted yet. Built code-only (no XAML) with the in-box csc.exe - no SDK, no VS.
+// The settings live in a per-user file (SettingsStore): loaded at launch, saved on every real edit.
+// Built code-only (no XAML) with the in-box csc.exe - no SDK, no VS.
 // Target: .NET Framework 4.8, WPF.
 
 using System;
@@ -77,7 +79,8 @@ namespace Monitorn.App
                 monitors.Count == 0
                     ? ""
                     : "Drag a slider to set a monitor. The night-light schedule dims every display to "
-                      + "its strength at the time you set, and gives it back afterwards. Nothing is saved yet.",
+                      + "its strength at the time you set, and gives it back afterwards. Settings are "
+                      + "saved and come back next launch.",
                 11, Muted, FontWeights.Normal, new Thickness(0, 8, 0, 0)));
 
             return new Window
@@ -265,6 +268,7 @@ namespace Monitorn.App
             int? strength = null;        // --strength N
             TimeSpan? fade = null;       // --fade-seconds N (the whole fade in N seconds)
             TimeSpan? step = null;       // --step-seconds N (one staircase step every N seconds)
+            string settingsFile = null;  // --settings-file <path>: where the settings live (verification)
 
             for (int i = 0; i < args.Length; i++)
             {
@@ -279,18 +283,24 @@ namespace Monitorn.App
                 else if (a == "--strength" && i + 1 < args.Length) strength = int.Parse(args[++i], CultureInfo.InvariantCulture);
                 else if (a == "--fade-seconds" && i + 1 < args.Length) fade = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
                 else if (a == "--step-seconds" && i + 1 < args.Length) step = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
+                else if (a == "--settings-file" && i + 1 < args.Length) settingsFile = args[++i];
             }
 
             var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
 
-            // --- the settings the window edits and the schedule reads: one object ---
-            var settings = new ScheduleSettings();
+            // --- the settings the window edits and the schedule reads: one object, loaded from disk ---
+            // The file is read first; the command-line seams are applied on top of it and are NEVER
+            // saved, so a verifier's --strength/--on/--off cannot rewrite the user's settings.
+            var store = new SettingsStore(settingsFile);
+            ScheduleSettings settings = store.Load();
             SetWindow(settings, turnOn, turnOff);
             if (strength.HasValue) settings.TrySetStrength(strength.Value.ToString(CultureInfo.InvariantCulture));
             if (!schedule) settings.SetEnabled(false);
 
             if (settingsOnly)
             {
+                // A real edit in the settings window is written straight back to the file.
+                settings.Changed += delegate { store.Save(settings); };
                 app.Run(SettingsSurface.Build(settings));
                 return;
             }
@@ -323,9 +333,17 @@ namespace Monitorn.App
             TextBlock status;
             Window window = Surface.Build(monitors, writer, scheduler, width, delegate { host.Show(); }, out status);
 
+            // A real edit is written to the file at once; a failed write is surfaced on the status
+            // line rather than thrown, and the app keeps running.
+            string saveError = null;
+            settings.Changed += delegate
+            {
+                saveError = store.Save(settings) ? null : store.LastError;
+            };
+
             // One pass at launch, so a run started inside the night window dims at once.
             Apply(scheduler, writer);
-            status.Text = scheduler.Status;
+            status.Text = StatusText(scheduler, saveError);
 
             // One timer drives both machines: the scheduler decides what it wants (and dedups it),
             // the writer decides when it lands. 200 ms keeps a slider drag responsive.
@@ -333,7 +351,7 @@ namespace Monitorn.App
             timer.Tick += delegate
             {
                 Apply(scheduler, writer);
-                status.Text = scheduler.Status;
+                status.Text = StatusText(scheduler, saveError);
             };
             timer.Start();
 
@@ -353,6 +371,13 @@ namespace Monitorn.App
         {
             foreach (NightWrite w in scheduler.Advance()) writer.Request(w.Id, w.Value);
             writer.Advance();
+        }
+
+        /// <summary>The schedule's line, plus a note if the settings could not be written.</summary>
+        private static string StatusText(NightLightScheduler scheduler, string saveError)
+        {
+            if (string.IsNullOrEmpty(saveError)) return scheduler.Status;
+            return scheduler.Status + "\nSettings not saved: " + saveError;
         }
 
         /// <summary>24-hour "HH:mm" from a command line into the model's 12-hour parts.</summary>

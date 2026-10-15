@@ -3,8 +3,9 @@
 //         here is applied to the displays while the app runs.
 //
 // A view over ScheduleSettings and nothing more: every handler calls a model transition and
-// then re-renders, so the window holds no rules of its own. What is still out of scope -
-//   * nothing is saved (no registry, no file): the schedule dies with the process,
+// then re-renders, so the window holds no rules of its own. EXP07: each transition is written
+// back to the settings file by the caller (Program.cs subscribes to the model's Changed event).
+// What is still out of scope -
 //   * "Sunset to sunrise" shows a fixed range placeholder; there is no location lookup.
 //
 // Built code-only (no XAML) with the in-box csc.exe, like EXP03. C# 5 only.
@@ -59,7 +60,7 @@ namespace Monitorn.App
             root.Children.Add(_body);
 
             root.Children.Add(Label(
-                "Applied while Monitorn is running - not saved yet.",
+                "Saved to your settings file and applied while Monitorn is running.",
                 11, Muted, FontWeights.Normal, new Thickness(0, 14, 0, 0)));
 
             var window = new Window

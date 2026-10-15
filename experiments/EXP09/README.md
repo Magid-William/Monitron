@@ -166,6 +166,19 @@ Boundaries this run does not cross:
   "active targets: 2", and the same two failures reproduce on EXP08's own build with EXP09 checked
   out. They need relaxing to N rows in a later experiment.
 
+## Next experiment (suggested)
+- **Relax the two single-row verifiers to N displays** - `verify-control.ps1` and
+  `verify-schedule.ps1`. Both hardcode "exactly one slider" and stop before driving anything on a
+  machine with two active targets, which is this machine now (an internal panel beside the AOC), so
+  the brightness path and the scripted night currently have **no** working end-to-end regression. It
+  is a verifier change, not a product change: find the rows by name/id, drive the one bound to a real
+  external monitor, and keep the probe as the witness. Small, and it un-blocks the regressions every
+  later experiment should be able to lean on.
+- The overview's standing step is unchanged and still comes after this: the **tray shell + autostart**
+  (which also decides what closing does), then a stored `theme=` preference plus a switch, then real
+  sunset/sunrise, then per-monitor profiles. The flyout corner this experiment proved is the
+  geometry that shell will open into.
+
 ## Conclusion (findings)
 _Pending._
 

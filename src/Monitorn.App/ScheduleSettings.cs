@@ -46,6 +46,23 @@ namespace Monitorn.App
         // --- derived: exactly what the window enables, per feature state and mode ---
         public bool BodyEnabled { get { return Enabled; } }
 
+        /// <summary>
+        /// The window the scheduler works with. "Set hours" supplies the real times; "Sunset to
+        /// sunrise" has no location yet, so it resolves to turn-on == turn-off - the zero-length
+        /// window the scheduler treats as "not configured". EXP04's placeholder made literal.
+        /// </summary>
+        public void ResolvedWindow(out TimeSpan on, out TimeSpan off)
+        {
+            if (Mode == ScheduleMode.SetHours)
+            {
+                on = TurnOn;
+                off = TurnOff;
+                return;
+            }
+            on = TimeSpan.Zero;
+            off = TimeSpan.Zero;
+        }
+
         public bool SetHoursFieldsEnabled
         {
             get { return Enabled && Mode == ScheduleMode.SetHours; }
@@ -103,6 +120,32 @@ namespace Monitorn.App
             int hour = (hour12 == 12) ? 0 : hour12;
             if (pm) hour += 12;
             value = new TimeSpan(hour, minute, 0);
+            return true;
+        }
+
+        /// <summary>
+        /// 24-hour "HH:mm" (what a script or a command line says) into the 12-hour parts the model
+        /// takes. One place for the arithmetic, so the verification seams and the tests agree.
+        /// </summary>
+        public static bool TryParseClock(string text, out int hour12, out int minute, out bool pm)
+        {
+            hour12 = 12;
+            minute = 0;
+            pm = false;
+            if (text == null) return false;
+
+            string[] parts = text.Trim().Split(':');
+            if (parts.Length != 2) return false;
+
+            int hour, min;
+            if (!int.TryParse(parts[0].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out hour)) return false;
+            if (!int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out min)) return false;
+            if (hour < 0 || hour > 23 || min < 0 || min > 59) return false;
+
+            pm = hour >= 12;
+            hour12 = hour % 12;
+            if (hour12 == 0) hour12 = 12;
+            minute = min;
             return true;
         }
 

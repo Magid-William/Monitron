@@ -1,10 +1,11 @@
-// EXP04 - the dummy "Schedule night light" settings window.
+// EXP04 - the "Schedule night light" settings window.
+// EXP06 - it is no longer a dummy: the model it edits is the one the scheduler reads, so a change
+//         here is applied to the displays while the app runs.
 //
 // A view over ScheduleSettings and nothing more: every handler calls a model transition and
-// then re-renders, so the window holds no rules of its own. Dummy by construction -
-//   * nothing is saved (no registry, no file) and nothing is applied to a monitor,
-//   * "Sunset to sunrise" shows a fixed range placeholder; there is no location lookup,
-//   * no DDC/CI, no WMI, no brightness write.
+// then re-renders, so the window holds no rules of its own. What is still out of scope -
+//   * nothing is saved (no registry, no file): the schedule dies with the process,
+//   * "Sunset to sunrise" shows a fixed range placeholder; there is no location lookup.
 //
 // Built code-only (no XAML) with the in-box csc.exe, like EXP03. C# 5 only.
 
@@ -58,7 +59,7 @@ namespace Monitorn.App
             root.Children.Add(_body);
 
             root.Children.Add(Label(
-                "Dummy settings - nothing is saved and no brightness is written.",
+                "Applied while Monitorn is running - not saved yet.",
                 11, Muted, FontWeights.Normal, new Thickness(0, 14, 0, 0)));
 
             var window = new Window
@@ -94,7 +95,7 @@ namespace Monitorn.App
                 Content = "On",
                 VerticalAlignment = VerticalAlignment.Center,
                 Cursor = Cursors.Hand,
-                ToolTip = "Turn the night-light schedule on or off (dummy: nothing is applied)",
+                ToolTip = "Turn the night-light schedule on or off",
             };
             _enabledBox.Checked += delegate { _model.SetEnabled(true); Render(); };
             _enabledBox.Unchecked += delegate { _model.SetEnabled(false); Render(); };
@@ -404,11 +405,17 @@ namespace Monitorn.App
         }
     }
 
-    /// <summary>Keeps the one settings window alive for the app's lifetime (modeless, single instance).</summary>
+    /// <summary>
+    /// Keeps the one settings window alive for the app's lifetime (modeless, single instance).
+    /// EXP06: the model is injected - the same object the scheduler reads - so an edit here takes
+    /// effect on the displays on the next tick.
+    /// </summary>
     internal sealed class SettingsHost
     {
-        private readonly ScheduleSettings _model = new ScheduleSettings();
+        private readonly ScheduleSettings _model;
         private Window _window;
+
+        public SettingsHost(ScheduleSettings model) { _model = model; }
 
         public void Show()
         {

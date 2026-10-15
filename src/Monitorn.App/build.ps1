@@ -1,11 +1,13 @@
 # Builds the Monitorn control surface with the in-box .NET Framework 4.8 compiler
-# (no SDK, no Visual Studio, no download). EXP03, extended by EXP04, extended by EXP05.
+# (no SDK, no Visual Studio, no download). EXP03, extended by EXP04, extended by EXP05,
+# extended by EXP06 (the schedule machine).
 #
 # The UI is written code-only (no XAML), so no markup/BAML step is needed and csc alone
 # can produce the executable; WPF comes from the in-box runtime assemblies.
 #
-# Sources are listed one by one on purpose: ScheduleSettingsTests.cs and BrightnessWriterTests.cs
-# have their own Main and belong to model-test.ps1 / writer-test.ps1, not to this winexe.
+# Sources are listed one by one on purpose: ScheduleSettingsTests.cs, BrightnessWriterTests.cs and
+# ScheduleTests.cs have their own Main and belong to model-test.ps1 / writer-test.ps1 /
+# schedule-test.ps1, not to this winexe.
 $ErrorActionPreference = 'Stop'
 
 $net = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319'
@@ -30,6 +32,7 @@ $args = @('/nologo', '/target:winexe', '/platform:x64', "/out:$out",
     @((Join-Path $here 'Program.cs'),
       (Join-Path $here 'Brightness.cs'),
       (Join-Path $here 'BrightnessController.cs'),
+      (Join-Path $here 'Schedule.cs'),
       (Join-Path $here 'ScheduleSettings.cs'),
       (Join-Path $here 'SettingsWindow.cs'))
 

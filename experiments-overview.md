@@ -10,6 +10,7 @@ only the user declares the final status.
 | EXP03 | Per-monitor control surface (slider + gear), UI only | success | EXP03 | 2026-10-15 | 2026-10-15 | [experiments/EXP03/README.md](experiments/EXP03/README.md) |
 | EXP04 | Dummy "Schedule night light" settings window, UI only | success | EXP04 | 2026-10-15 | 2026-10-15 | [experiments/EXP04/README.md](experiments/EXP04/README.md) |
 | EXP05 | Bring brightness to life: real detection + real writes on the surface | inProg | EXP05 | 2026-10-15 | - | [experiments/EXP05/README.md](experiments/EXP05/README.md) |
+| EXP06 | Apply the night-light schedule (scheduler FSM + real monitors) | inProg | EXP06 | 2026-10-15 | - | [experiments/EXP06/README.md](experiments/EXP06/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was

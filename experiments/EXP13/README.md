@@ -128,7 +128,10 @@ and how the experiment log works), an **MIT** `LICENSE` was added, and the autho
 path was taken out of `AGENTS.md` and the experiment records (they now say "the repository root").
 The repository is public at **https://github.com/Magid-William/Monitron**: `main` fast-forwarded to
 this branch, every experiment branch pushed, MIT, topics set. No app code changed, so nothing was
-rebuilt and no suite was re-run - the rename's 394/0 stands.
+rebuilt and no suite was re-run - the rename's 394/0 stands. The README was then re-framed for a
+general audience at the user's ask: it leads with what the app does for the reader and moves the
+build and verification detail into a short "For developers" section - the "no SDK" line is a build
+fact, not a selling point, and a casual reader has no use for it.
 
 ## Learnings
 - A repo-wide product rename: a byte-level `String.Replace` over every text file (a Latin1 round-trip

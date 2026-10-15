@@ -110,8 +110,8 @@ titles, the surface heading, the exe (`Monitron.App.exe`), the source folder (`s
 the icon (`Monitron.ico`), the namespace (`Monitron.App`), the per-user settings folder
 (`%APPDATA%\Monitron\settings.ini`), the Run registry value, the build and verify scripts and their
 title assertions, and the prose in `README.md`, `AGENTS.md`, `docs/prior-art/` and **every**
-experiment record. `D:\Playground\Projects\Apps\Monitorn\` keeps its name - renaming the checkout is
-outside git and would move the working directory. The machine side was migrated on this box so the
+experiment record. The checkout folder keeps its name - renaming it is outside git and would move the
+working directory. The machine side was migrated on this box so the
 running app kept its schedule: `settings.ini` copied into the new folder, and the `Monitorn` Run
 value replaced by `Monitron` pointing at the new exe (the old one had gone stale with the folder).
 Verified: a fresh `build.ps1`, all **eight** headless suites green (**394 assertions, 0 failed**),
@@ -121,6 +121,14 @@ change is names and paths only, no behaviour. Two honest costs, both accepted: t
 show the new name in paths that were run under the old one (e.g. a `git show EXP12:src/Monitron.App/...`
 baseline that then lived at `src/Monitorn.App/`), and a rename like this orphans the old
 `%APPDATA%` folder and the old Run value unless they are migrated by hand.
+
+**Post-conclusion change 3 (user's ask, same experiment): the app is published.** `README.md` was
+rewritten from its "Pre-implementation" scaffold into a landing page (features, the build command,
+and how the experiment log works), an **MIT** `LICENSE` was added, and the author's local checkout
+path was taken out of `AGENTS.md` and the experiment records (they now say "the repository root").
+The repository is public at **https://github.com/Magid-William/Monitron**: `main` fast-forwarded to
+this branch, every experiment branch pushed, MIT, topics set. No app code changed, so nothing was
+rebuilt and no suite was re-run - the rename's 394/0 stands.
 
 ## Learnings
 - A repo-wide product rename: a byte-level `String.Replace` over every text file (a Latin1 round-trip
@@ -132,6 +140,11 @@ baseline that then lived at `src/Monitorn.App/`), and a rename like this orphans
   (the settings file) and the `HKCU\...\Run` value named after the old name (which points at the
   now-missing exe). Neither is touched by the app; do both, or the user silently loses the schedule
   and keeps a broken autostart entry.
+- Publishing an existing local repo: `gh repo create <owner>/<name> --public --source=. --remote=origin
+  --description "..."`, then `git push -u origin --all`, then `gh repo edit <owner>/<name>
+  --default-branch <b> --add-topic ...`. `--source` sets `origin` for you; `--push` would only send
+  one branch, so push `--all` yourself. `gh auth status` can print a stale account label - trust
+  `gh api user --jq .login` for the real owner.
 - `IsMoveToPointEnabled = true` on a slider with the OS template: a track click lands on the press,
   snapped to the tick and clamped, and a press on the thumb is still left to the drag. One line; no
   template surgery. Use when a slider must be settable without hitting the thumb.

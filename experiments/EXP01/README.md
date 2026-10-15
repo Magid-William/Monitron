@@ -24,7 +24,7 @@ Falsified if some widely used tool already does both out of the box.
 - May touch: `git init`; branch `EXP01`; `experiments/EXP01/README.md`;
   `experiments-overview.md`; `docs/prior-art/*.md`; retargeted `AGENTS.md`.
 - Off-limits: anything under `src/` (that is the build experiment); anything outside
-  `D:\Playground\Projects\Apps\Monitorn\`.
+  `the repository root`.
 
 ## Open questions (known unknowns)
 - [x] Deliverable shape — default: `docs/prior-art/README.md` (index + thesis) plus one

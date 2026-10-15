@@ -34,7 +34,7 @@ or a row cannot show name + slider + gear legibly (overlap, clipping, unusable a
   new `src/Monitron.App/` (**experiment code lands at the repo root** per AGENTS; only the README
   lives under `experiments/EXP03/`).
 - Off-limits: any DDC/CI or WMI call, any brightness write; `src/probe/**`; tray icon, autostart,
-  scheduling, profiles; anything outside `D:\Playground\Projects\Apps\Monitorn\`; downloads
+  scheduling, profiles; anything outside `the repository root`; downloads
   (the net48 in-box path was chosen, so no SDK is fetched).
 - Numbering: EXP03 was the number EXP02 reserved for the scheduler; this experiment takes EXP03
   and the scheduler slides one number later.

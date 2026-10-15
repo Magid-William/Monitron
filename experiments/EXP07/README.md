@@ -47,7 +47,7 @@ verifier points elsewhere; or the model touches the store when a value was refus
 - Off-limits: the registry; per-monitor profiles and monitor identity across reconnect
   (`docs/prior-art/apis-and-identity.md` is a later experiment); tray shell and autostart; real
   sunset/sunrise by location; VCP `0x60`/`0xD6`; `src/probe/**` beyond running it read-only;
-  anything outside `D:\Playground\Projects\Apps\Monitorn\`; downloads.
+  anything outside `the repository root`; downloads.
 - Escalation budget: every verification run points at a file under `%TEMP%\monitron-exp07\`, and the
   verifier asserts the real `%APPDATA%\Monitron\settings.ini` was not created during the run. No
   monitor write beyond what EXP06 already does; the display ends at its original value on every path.

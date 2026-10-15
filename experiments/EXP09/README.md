@@ -69,7 +69,7 @@ area changes.
   the schedule machine and its timings; the `settings.ini` format; the tray icon, autostart,
   z-order, activation and `ShowInTaskbar` (the tray shell's business, still the standing step);
   per-monitor profiles; the registry is **read only**; anything outside
-  `D:\Playground\Projects\Apps\Monitorn\`; downloads.
+  `the repository root`; downloads.
 - Escalation budget: every run pins `--no-schedule` and `--settings-file <temp>` and writes into
   `%TEMP%\monitron-exp09\`; the verifier asserts the real `%APPDATA%\Monitron\settings.ini` is
   unchanged (content hash, whether or not it exists) and that no monitor value changed. **The user's

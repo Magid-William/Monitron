@@ -271,4 +271,7 @@ docs and every record (the checkout folder `...\Apps\Monitorn\` keeps its name):
 exe, source folder, icon, namespace, `%APPDATA%\Monitron\settings.ini` and the Run value all changed,
 with the settings file and autostart entry migrated by hand; a fresh build and all eight headless
 suites are green (394 assertions, 0 failed). Recommend the standing steps: the stored `theme=` preference - the tray menu joins it -
-then real sunset/sunrise by location, then per-monitor profiles.
+then real sunset/sunrise by location, then per-monitor profiles. **Published** at
+https://github.com/Magid-William/Monitron (public, MIT, `main` = this branch, all experiment branches
+pushed); `README.md` was rewritten from its "Pre-implementation" scaffold and the author's local
+checkout path was removed from the records.

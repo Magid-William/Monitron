@@ -37,7 +37,7 @@ enablement cannot be driven without a real clock or a UI automation harness.
 - Off-limits: any DDC/CI, WMI or brightness write; persistence (registry or file); real
   sunset/sunrise (no geolocation, no network, no timezone math); tray icon and autostart;
   `src/probe/**` (its known `Probe.cs:107` compile break is left alone); anything outside
-  `D:\Playground\Projects\Apps\Monitorn\`; downloads.
+  `the repository root`; downloads.
 - Escalation budget: none - this cannot touch hardware by construction.
 - Numbering: EXP03's recommendation was the scheduler FSM; the settings window was requested
   first, so the scheduler slides one number later (EXP03 did the same to EXP02's suggestion).

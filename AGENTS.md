@@ -33,7 +33,7 @@ goal are a candidate for
 `abandoned` is set only when the user says to abandon the experiment.
 
 ## Rules
-- It's a **sin** to explore other folders outside `D:\Playground\Projects\Apps\Monitorn\`.
+- It's a **sin** to explore other folders outside `the repository root`.
 - One experiment = one hypothesis. Make the blast radius explicit before starting.
 - Branch per experiment, named after the EXP number (`EXP0N`).
 - Experiment **code lands at the repo root** (`src/`, `Monitron.sln`, ...) — that is the app. `experiments/EXP0N/` holds only the README: the record, not the implementation.

@@ -51,7 +51,7 @@ by the schedule; or closing the app leaves a display dimmed.
 - Off-limits: VCP `0x60` (input) and `0xD6` (power) and the DDC/CI capabilities string; persistence
   (no registry, no file - the schedule is in memory only); real sunset/sunrise (no location, no
   network, no timezone math); tray shell and autostart; per-monitor profiles; `src/probe/**` beyond
-  running it read-only; anything outside `D:\Playground\Projects\Apps\Monitorn\`; downloads.
+  running it read-only; anything outside `the repository root`; downloads.
 - Escalation budget: every scheduled write stays inside the display's own `Min..Max` and on the one
   active display; no write at all if the initial read fails; the verifier drives the excursion and
   ends with the original value restored (and the app restores it again on close).

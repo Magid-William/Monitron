@@ -47,7 +47,7 @@ or the debounce applies a stale value, or the window freezes.
 - Off-limits: VCP `0x60` (input) and `0xD6` (power) - the bricking vector; the DDC/CI
   capabilities-string call; persistence; the scheduler; the tray shell; sunset lookup;
   `src/probe/Probe.cs` beyond the one-word fix; anything outside
-  `D:\Playground\Projects\Apps\Monitorn\`; downloads.
+  `the repository root`; downloads.
 - Escalation budget: exactly one reversible write per monitor per verifier run, restored to the
   original read; no write if the initial read is unreadable.
 

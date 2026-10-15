@@ -32,7 +32,7 @@ absent (a known hardware limitation).
 - Off-limits: VCP `0x60` (input source) and `0xD6` (power) — the confirmed bricking vector;
   any manufacturer-range VCP; and the DDC/CI **capabilities-string call** (the `win32kfull`
   BSOD path) — we read VCP `0x10` directly instead. Nothing outside
-  `D:\Playground\Projects\Apps\Monitorn\`.
+  `the repository root`.
 - Escalation budget: exactly one reversible write per monitor; abort without writing if the
   initial read is invalid or the monitor is a known-bad model.
 

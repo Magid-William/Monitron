@@ -60,7 +60,7 @@ DWM dark title bar is unavailable on this build.
   report mode runs no scheduler and no writer); DDC/CI and VCP; per-monitor profiles and identity;
   the tray shell and autostart; real sunset/sunrise; the `settings.ini` format (the theme follows
   the OS; a stored user preference is a later experiment); the registry is **read only**; anything
-  outside `D:\Playground\Projects\Apps\Monitorn\`; downloads.
+  outside `the repository root`; downloads.
 - Escalation budget: every run pins `--theme`/`--os-theme` and writes into
   `%TEMP%\monitron-exp08\`, with `--settings-file` pointing at a temp file; the verifier asserts
   the real `%APPDATA%\Monitron\settings.ini` is unchanged (its content hash, whether or not it

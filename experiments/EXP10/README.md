@@ -57,7 +57,7 @@ off its original value or touches the user's real `%APPDATA%\Monitron\settings.i
 - Off-limits: the schedule machine and its timings; the placement; the theme; the `settings.ini`
   format; the app's visible behaviour; the tray icon, autostart, z-order and activation (the
   standing next step, now EXP11); per-monitor profiles; the registry is **read only**; anything
-  outside `D:\Playground\Projects\Apps\Monitorn\`; downloads.
+  outside `the repository root`; downloads.
 - Escalation budget: every run pins a temp settings file and writes into `%TEMP%\monitron-exp10\`;
   both displays are restored and asserted back at their original values, and the user's real
   `settings.ini` is asserted unchanged. **New since EXP09: the runs deliberately write to the

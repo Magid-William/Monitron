@@ -12,7 +12,7 @@ that, for free, per display. See [`tools.md`](tools.md).
 ## Thesis (revised)
 Monitron is not a first-mover. Its value is *fit and form*:
 
-1. **Native and light** — C#/WPF on .NET 8, no Electron/Node runtime (Twinkle Tray is
+1. **Native and light** — C#/WPF on .NET Framework 4.8, no Electron/Node runtime (Twinkle Tray is
    Electron, ~200 MB installed).
 2. **A focused overnight window** — fade down at 21:00 and restore at 06:00, with a gradual
    fade and an explicit "manual override ends the schedule for the night" rule.

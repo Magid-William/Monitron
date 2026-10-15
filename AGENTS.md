@@ -6,8 +6,8 @@ monitors (externally over **DDC/CI**, internal panels via the WMI brightness API
 **dims them on a schedule** (e.g. fade down 21:00 → 06:00, then fade back). Prior-art
 research and the product thesis live in `docs/prior-art/`.
 
-Stack: **C# / WPF on .NET 8** (chosen in EXP01 planning; mirrors Monitorian's approach
-with a modern runtime). The .NET 8 SDK must be installed to build.
+Stack: **C# / WPF on .NET Framework 4.8** (chosen in EXP01 planning; mirrors Monitorian's
+approach). Built code-only (no XAML) with the in-box `csc.exe` - no SDK and no Visual Studio needed.
 
 ## Experiment workflow
 Experiments are numbered EXP01, EXP02, ... One git branch per experiment,

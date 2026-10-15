@@ -9,6 +9,7 @@ only the user declares the final status.
 | EXP02 | Detect monitors and control their brightness (sampling spike) | success | EXP02 | 2026-10-15 | 2026-10-15 | [experiments/EXP02/README.md](experiments/EXP02/README.md) |
 | EXP03 | Per-monitor control surface (slider + gear), UI only | success | EXP03 | 2026-10-15 | 2026-10-15 | [experiments/EXP03/README.md](experiments/EXP03/README.md) |
 | EXP04 | Dummy "Schedule night light" settings window, UI only | success | EXP04 | 2026-10-15 | 2026-10-15 | [experiments/EXP04/README.md](experiments/EXP04/README.md) |
+| EXP05 | Bring brightness to life: real detection + real writes on the surface | inProg | EXP05 | 2026-10-15 | - | [experiments/EXP05/README.md](experiments/EXP05/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -45,3 +46,13 @@ which this window now supplies the settings shape for — then real detection in
 tray shell, and persistence. One learning from it was **promoted into `AGENTS.md`** (the one
 promotion allowed, approved by the user): UI claims are verified by driving the window through UI
 Automation patterns and asserting the state it reports, never by `SendKeys`.
+
+**EXP05:** `inProg`. Joins EXP02's actuator to EXP03's surface: the app detects the **active
+rendering targets**, reads each one's real brightness into its row, and a slider drives the real
+monitor over DDC/CI (or WMI for an internal active panel), **debounced** so the final value wins.
+Rows are active targets only and the write model is debounce, both the user's call; the two repo
+facts EXP04 flagged (`README.md`'s `.NET 8` claim and `src/probe/Probe.cs:107`) are fixed here as
+the user asked. **Run 2026-10-15:** the one active target (AOC `Q27G3G3R3`) is detected and shown
+at its real 30; a slider drove it **30 -> 20 -> 30** with the independent read-only `probe.exe`
+following each step; 19 headless debounce assertions and 11 UI Automation checks, all passing. The
+internal-WMI path is implemented but not exercised (no internal *active* target on this machine).

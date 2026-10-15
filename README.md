@@ -8,7 +8,7 @@ previous brightness at 06:00.
 - Internal laptop panels: the Windows WMI brightness API.
 - Planned: per-monitor profiles that survive unplug/reconnect, auto-start on sign-in.
 
-Stack: **C# / WPF on .NET 8**.
+Stack: **C# / WPF on .NET Framework 4.8** (built with the in-box `csc.exe` - no SDK needed).
 
 ## Status
 Pre-implementation. Prior-art research lives in [`docs/prior-art/`](docs/prior-art/);

@@ -1,15 +1,12 @@
-// EXP03/EXP04 - Monitorn per-monitor control surface (UI only).
+// EXP05 - Monitorn per-monitor control surface, now with the brightness functionality alive.
 //
-// The control surface of the tray app: one row per monitor, each with the monitor's
-// name, a 0-100 brightness slider and a gear button. This is a UI spike only:
-//   * monitor rows are HARDCODED samples - nothing is detected,
-//   * the sliders change their own value label and nothing else,
-//   * no DDC/CI, no WMI, no brightness write of any kind.
+// One row per ACTIVE display: its real name, its real current brightness on a slider, and a gear
+// that opens the settings window (EXP04). Dragging a slider is debounced by BrightnessWriter and
+// then written to that monitor - DDC/CI for an external display, WMI for an internal panel - and
+// the value read for each row comes from the monitor, not from a sample table.
 //
-// EXP04 wires the gear to the dummy "Schedule night light" settings window (SettingsWindow.cs)
-// and adds --settings, which opens that window on its own so it can be verified directly.
-//
-// Built code-only (no XAML) so the in-box csc.exe alone can produce it - no SDK, no VS.
+// Nothing is persisted and no schedule is applied yet; this experiment is detection + control.
+// Built code-only (no XAML) with the in-box csc.exe - no SDK, no VS.
 // Target: .NET Framework 4.8, WPF.
 
 using System;
@@ -19,30 +16,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace Monitorn.App
 {
-    /// <summary>Presentation model for one monitor row.</summary>
-    internal sealed class MonitorRow
-    {
-        public MonitorRow(int index, string name, int brightness)
-        {
-            Index = index;
-            Name = name;
-            Brightness = brightness;
-        }
-
-        public int Index { get; private set; }
-        public string Name { get; private set; }
-        public int Brightness { get; set; }
-
-        /// <summary>A display always gets a label, even when the monitor reports no name.</summary>
-        public string DisplayName
-        {
-            get { return string.IsNullOrEmpty(Name) ? "Display " + Index.ToString(CultureInfo.InvariantCulture) : Name; }
-        }
-    }
-
     internal static class Surface
     {
         private static readonly FontFamily GlyphFont = new FontFamily("Segoe MDL2 Assets");
@@ -50,22 +27,36 @@ namespace Monitorn.App
 
         private static readonly Brush Ink = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
         private static readonly Brush Muted = new SolidColorBrush(Color.FromRgb(0x76, 0x76, 0x76));
+        private static readonly Brush Warn = new SolidColorBrush(Color.FromRgb(0xB0, 0x3A, 0x2B));
         private static readonly Brush RowFill = new SolidColorBrush(Color.FromRgb(0xF7, 0xF7, 0xF7));
         private static readonly Brush RowEdge = new SolidColorBrush(Color.FromRgb(0xE4, 0xE4, 0xE4));
         private static readonly Brush GearFill = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
         private static readonly Brush GearEdge = new SolidColorBrush(Color.FromRgb(0xD8, 0xD8, 0xD8));
 
-        public static Window Build(IList<MonitorRow> rows, double width, Action onSettings)
+        public static Window Build(IList<MonitorInfo> monitors, BrightnessWriter writer, double width, Action onSettings)
         {
             var root = new StackPanel { Margin = new Thickness(18, 16, 18, 16) };
 
             root.Children.Add(Label("Monitorn", 16, Ink, FontWeights.SemiBold, new Thickness(0, 0, 0, 2)));
             root.Children.Add(Label("Brightness per display", 12, Muted, FontWeights.Normal, new Thickness(0, 0, 0, 14)));
 
-            foreach (MonitorRow row in rows) root.Children.Add(Row(row, onSettings));
+            if (monitors.Count == 0)
+            {
+                root.Children.Add(Label(
+                    "No controllable displays were detected. A display is controllable when it is an "
+                    + "active target and answers DDC/CI or the WMI brightness API.",
+                    12, Muted, FontWeights.Normal, new Thickness(0, 0, 0, 0)));
+            }
+            else
+            {
+                foreach (MonitorInfo monitor in monitors) root.Children.Add(Row(monitor, writer, onSettings));
+            }
 
             root.Children.Add(Label(
-                "UI spike - sliders change their own label, the gear opens dummy settings, nothing is written to a monitor.",
+                monitors.Count == 0
+                    ? ""
+                    : "Drag a slider - the value is written to that monitor after it settles. "
+                      + "Nothing is saved or scheduled yet.",
                 11, Muted, FontWeights.Normal, new Thickness(0, 4, 0, 0)));
 
             return new Window
@@ -96,11 +87,11 @@ namespace Monitorn.App
         }
 
         /// <summary>One monitor: name + live value above a slider, gear button at the right.</summary>
-        private static Border Row(MonitorRow row, Action onSettings)
+        private static Border Row(MonitorInfo monitor, BrightnessWriter writer, Action onSettings)
         {
             var value = new TextBlock
             {
-                Text = row.Brightness.ToString(CultureInfo.InvariantCulture),
+                Text = monitor.Current.ToString(CultureInfo.InvariantCulture),
                 FontSize = 13,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = Ink,
@@ -112,11 +103,21 @@ namespace Monitorn.App
 
             var name = new TextBlock
             {
-                Text = row.DisplayName,
+                Text = monitor.DisplayName,
                 Foreground = Ink,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                ToolTip = string.IsNullOrEmpty(row.Name) ? "This display reported no name" : row.Name,
+                ToolTip = monitor.Kind == MonitorKind.External ? "External display (DDC/CI)" : "Internal panel (WMI)",
+            };
+
+            var notes = new TextBlock
+            {
+                Text = "",
+                FontSize = 11,
+                Foreground = Warn,
+                TextWrapping = TextWrapping.Wrap,
+                Visibility = Visibility.Collapsed,
+                Margin = new Thickness(0, 4, 0, 0),
             };
 
             var caption = new Grid();
@@ -129,25 +130,44 @@ namespace Monitorn.App
 
             var slider = new Slider
             {
-                Minimum = 0,
-                Maximum = 100,
-                Value = row.Brightness,
+                Minimum = monitor.Min,
+                Maximum = monitor.Max,
+                Value = monitor.Current,
                 SmallChange = 1,
                 LargeChange = 10,
                 TickFrequency = 1,
                 IsSnapToTickEnabled = true,
+                IsEnabled = monitor.Max > monitor.Min,
                 Margin = new Thickness(0, 8, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = monitor.DisplayName + " brightness, " + monitor.Min + "-" + monitor.Max,
             };
+            // The label shows what you asked for at once; the debounce decides when it lands.
             slider.ValueChanged += delegate(object sender, RoutedPropertyChangedEventArgs<double> e)
             {
-                row.Brightness = (int)Math.Round(e.NewValue);
-                value.Text = row.Brightness.ToString(CultureInfo.InvariantCulture);
+                int v = (int)Math.Round(e.NewValue);
+                value.Text = v.ToString(CultureInfo.InvariantCulture);
+                writer.Request(monitor.Id, v);
+            };
+
+            // A write's outcome comes back from the writer, not from the slider.
+            writer.Written += delegate(string id, int applied)
+            {
+                if (id != monitor.Id) return;
+                value.Text = applied.ToString(CultureInfo.InvariantCulture);
+                notes.Visibility = Visibility.Collapsed;
+            };
+            writer.Failed += delegate(string id, string error)
+            {
+                if (id != monitor.Id) return;
+                notes.Text = "Last change was not applied (" + error + ").";
+                notes.Visibility = Visibility.Visible;
             };
 
             var column = new StackPanel();
             column.Children.Add(caption);
             column.Children.Add(slider);
+            column.Children.Add(notes);
 
             var gear = new Button
             {
@@ -161,13 +181,12 @@ namespace Monitorn.App
                 Cursor = Cursors.Hand,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(12, 0, 0, 0),
-                ToolTip = "Settings for " + row.DisplayName,
-                // EXP04: the gear now opens the (dummy) night-light schedule settings window.
+                ToolTip = "Settings for " + monitor.DisplayName,
             };
             gear.Click += delegate { onSettings(); };
             // An icon-only button has no readable name; give it one (accessibility), which is also
             // what the verifier finds it by - a WPF Slider puts its own Buttons in the UIA tree.
-            System.Windows.Automation.AutomationProperties.SetName(gear, "Settings for " + row.DisplayName);
+            System.Windows.Automation.AutomationProperties.SetName(gear, "Settings for " + monitor.DisplayName);
 
             var grid = new Grid();
             grid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -192,31 +211,19 @@ namespace Monitorn.App
 
     internal static class Program
     {
+        /// <summary>How long a slider must sit still before its value is written to the monitor.</summary>
+        private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(250);
+
         [STAThread]
         private static void Main(string[] args)
         {
-            int count = 3;      // --rows N: how many sample monitors to lay out
             double width = 400; // --width N: window width in DIPs
             bool settingsOnly = false; // --settings: open the night-light settings window by itself
             for (int i = 0; i < args.Length; i++)
             {
-                if (args[i] == "--rows" && i + 1 < args.Length) count = int.Parse(args[++i], CultureInfo.InvariantCulture);
-                else if (args[i] == "--width" && i + 1 < args.Length) width = double.Parse(args[++i], CultureInfo.InvariantCulture);
+                if (args[i] == "--width" && i + 1 < args.Length) width = double.Parse(args[++i], CultureInfo.InvariantCulture);
                 else if (args[i] == "--settings") settingsOnly = true;
             }
-            if (count < 1) count = 1;
-
-            // The two monitors EXP02 found on this machine, plus one unnamed row to exercise the
-            // fallback label. Sample data only - no detection happens here.
-            var known = new List<MonitorRow>
-            {
-                new MonitorRow(1, "AOC Q27G3G3R3", 47),  // external, DDC/CI
-                new MonitorRow(2, "BOE BOE0764", 62),    // internal panel, WMI
-                new MonitorRow(3, null, 50),             // unnamed -> "Display 3"
-            };
-
-            var rows = new List<MonitorRow>();
-            for (int i = 0; i < count; i++) rows.Add(known[i % known.Count]);
 
             var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
 
@@ -226,8 +233,31 @@ namespace Monitorn.App
                 return;
             }
 
+            // Real detection: active displays, read once. No sample rows any more.
+            var controller = new BrightnessController();
+            IList<MonitorInfo> monitors;
+            try { monitors = controller.Detect(); }
+            catch { monitors = new List<MonitorInfo>(); }
+
+            var writer = new BrightnessWriter(controller, Settle, delegate { return DateTimeOffset.Now; });
+            foreach (MonitorInfo monitor in monitors) writer.Seed(monitor.Id, monitor.Current);
+
             var host = new SettingsHost();
-            app.Run(Surface.Build(rows, width, delegate { host.Show(); }));
+            Window window = Surface.Build(monitors, writer, width, delegate { host.Show(); });
+
+            // The debounce timer: it only decides *when*; BrightnessWriter decides what and whether.
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+            timer.Tick += delegate { writer.Advance(); };
+            timer.Start();
+
+            window.Closing += delegate
+            {
+                timer.Stop();
+                writer.Flush();       // land the last value if the window closes mid-drag
+                controller.Dispose();
+            };
+
+            app.Run(window);
         }
     }
 }

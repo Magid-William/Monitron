@@ -104,7 +104,7 @@ namespace Monitorn.Probe
         [DllImport("dxva2.dll", SetLastError = true)] private static extern bool GetPhysicalMonitorsFromHMONITOR(IntPtr hMonitor, uint n, IntPtr arr);
         [DllImport("dxva2.dll", SetLastError = true)] private static extern bool DestroyPhysicalMonitors(uint n, IntPtr arr);
         [DllImport("dxva2.dll", SetLastError = true)] private static extern bool GetMonitorBrightness(IntPtr h, out uint min, out uint cur, out uint max);
-        [DllImport("dxva2.dll", SetLastError = true)] private static extern bool (IntPtr h, uint v);
+        [DllImport("dxva2.dll", SetLastError = true)] private static extern bool SetMonitorBrightness(IntPtr h, uint v);
         [DllImport("dxva2.dll", SetLastError = true)] private static extern bool GetMonitorContrast(IntPtr h, out uint min, out uint cur, out uint max);
 
         public static void Dump(bool write, int delta)

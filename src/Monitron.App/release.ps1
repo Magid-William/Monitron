@@ -89,7 +89,7 @@ overnight, and put every screen back the way it was in the morning.
 **Requirements:** Windows 10 or 11, 64-bit. It uses the .NET Framework 4.8 that Windows already has.
 
 **Unsigned on purpose.** This build carries no code-signing certificate, so Windows SmartScreen may
-say *"Windows protected your PC"* the first time you run it. Choose **More info** -> **Run anyway**.
+say *"Windows protected your PC"* the first time you run it. Choose **More info** → **Run anyway**.
 Check the file is the one this release built:
 
     Get-FileHash .\$AssetName -Algorithm SHA256

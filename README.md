@@ -39,10 +39,15 @@ level overnight, and put every screen back the way it was in the morning.
 
 ## Getting it
 
-There is no installer yet. Monitron is a single program and needs nothing installed alongside it —
-it runs on Windows 10 and 11 as they come.
+Download **`Monitron.exe`** from the [latest release](https://github.com/Magid-William/Monitron/releases/latest)
+and run it — a single program, no installer, nothing to install alongside it. It runs on Windows 10
+and 11 as they come.
 
-Build and run it:
+The release is **unsigned** — there is no code-signing certificate yet — so Windows SmartScreen may
+say *"Windows protected your PC"* the first time: choose **More info** → **Run anyway**. The release
+page prints the SHA-256, which `Get-FileHash .\Monitron.exe -Algorithm SHA256` should match.
+
+Build it yourself instead:
 
 ```powershell
 pwsh -File src\Monitron.App\build.ps1

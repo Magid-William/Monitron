@@ -16,7 +16,7 @@ only the user declares the final status.
 | EXP09 | Screen position: the surface as a bottom-right flyout, near the clock | success | EXP09 | 2026-10-15 | 2026-10-15 | [experiments/EXP09/README.md](experiments/EXP09/README.md) |
 | EXP10 | Raise the brightness regressions to N displays | success | EXP10 | 2026-10-15 | 2026-10-15 | [experiments/EXP10/README.md](experiments/EXP10/README.md) |
 | EXP11 | The tray shell: notification-area icon, Run on Windows startup, Quit | success | EXP11 | 2026-10-15 | 2026-10-15 | [experiments/EXP11/README.md](experiments/EXP11/README.md) |
-| EXP12 | The app icon: the designed logo, as a real multi-resolution .ico | inProg | EXP12 | 2026-10-15 | - | [experiments/EXP12/README.md](experiments/EXP12/README.md) |
+| EXP12 | The app icon: the neon-green logo, as the app's one multi-size .ico | success | EXP12 | 2026-10-15 | 2026-10-15 | [experiments/EXP12/README.md](experiments/EXP12/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -212,3 +212,28 @@ session end restores; a refused icon falls back to the ordinary window lifecycle
 out of scope. No promotion into `AGENTS.md` (that budget was spent in EXP10). Recommend **EXP12 = the
 stored `theme=` preference** (small now, and the tray menu joins it), then real sunset/sunrise by
 location, then per-monitor profiles.
+
+**EXP12:** `success` (user-declared). The app's own icon - the user's ask, which displaced EXP11's
+recommendation for one experiment (the stored `theme=` preference still stands). `logo.svg`'s six
+paint values are one neon green (`#02DA96`), the user's colour: black came first (3.2:1 against this
+machine's 0.11-luminance taskbar, i.e. invisible there), then a mid grey (`#A0A0A0`, washed out on
+light), both rejected - and the pipeline already in the tree turned that SVG into `Monitorn.ico` with
+nothing else changed: `icogen.ps1` wrote the nine frames (16/20/24/32/40/48/64 as DIB, 128/256 as
+PNG; 71197 bytes), `build.ps1` embedded them with `/win32icon:` and `/resource:`, and the app reads
+them for `Window.Icon` and the tray. A byte audit finds the container spec-correct and **all nine
+frames byte for byte inside the rebuilt exe** (245248 bytes), whose icon sampled at 256 px is
+(3,190,131) - the green - against (140,140,140) for the grey build before it; the app's own
+`--icon-report` says `resource=Monitorn.ico`, `frames=16,20,24,32,40,48,64,128,256`,
+`windowIcon=true`, `trayIcon=true`. `icon-test.ps1` is green (49 passed, 0 failed, including that the
+committed asset is exactly what `icogen` writes today), and the user confirmed the exe, the window and
+the tray by hand. **The experiment's real findings are about *seeing* the icon, not making it**:
+`csc` cannot rewrite the exe while the app runs (*"used by another process"*), the tray icon is read
+once at startup from the exe the process was started from - so a rebuild needs a quit and a restart -
+and Explorer caches icons by path; each of the three looks exactly like "the icon did not change".
+Boundaries: the E2E `verify-*.ps1` suites were **not** run, at the user's instruction, so the shell's
+icon for the exe is witnessed by the exe's bytes and the app's own report and not by the shell;
+`logo.figcraft`, the design source, still describes a black mark, so re-exporting from the design
+tool would undo the colour; the 16-24 px frames keep the same detailed geometry (ticks and the thin
+ring); and the green carries the identity by hue rather than luminance (3.6:1 over the taskbar, 1.8:1
+over white). No promotion into `AGENTS.md`. Recommend the standing steps: the stored `theme=`
+preference, then real sunset/sunrise by location, then per-monitor profiles.

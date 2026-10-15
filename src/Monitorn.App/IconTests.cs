@@ -53,7 +53,7 @@ namespace Monitorn.App
                 "the viewBox is the canvas (1124.04 x 1085.64)");
             Check(document.Shapes.Count == 6, "the logo is six paths");
 
-            int strokes = 0, fills = 0, evenOdd = 0, transformed = 0, black = 0;
+            int strokes = 0, fills = 0, evenOdd = 0, transformed = 0, grey = 0;
             SvgShape ring = null;
             foreach (SvgShape shape in document.Shapes)
             {
@@ -61,12 +61,12 @@ namespace Monitorn.App
                 else fills++;
                 if (shape.EvenOdd) evenOdd++;
                 if (shape.HasTransform) transformed++;
-                if (shape.Fill == 0xFF000000 || shape.Stroke == 0xFF000000) black++;
+                if (shape.Fill == 0xFF02DA96 || shape.Stroke == 0xFF02DA96) grey++;
             }
             Check(strokes == 1 && fills == 5, "one stroked ring and five filled shapes");
             Check(evenOdd == 2, "two of them fill with the even-odd rule");
             Check(transformed == 6, "every path carries a transform");
-            Check(black == 6, "and the logo is black");
+            Check(grey == 6, "and the logo is one neon green");
             Check(ring != null && ring.StrokeWidth == 12 && ring.Fill == 0,
                 "the ring is a 12-unit stroke with no fill");
 

@@ -173,8 +173,9 @@ What it deliberately does not settle - the boundary of this experiment:
   the schedule is not per-display: every controllable active display gets it.
 - **Closing restores the day value.** That suits a hand-run app and keeps the escalation budget
   honest; a resident tray app will have to decide what it does instead.
-- **EXP05 is still `inProg` and un-concluded.** EXP06 branches off its tip and builds on its code;
-  EXP05's record stands as its own.
+- **EXP05 was `inProg` and un-concluded when this experiment concluded.** EXP06 branches off its
+  tip and builds on its code; EXP05's record stands as its own (it was concluded later, on its own
+  branch).
 - Stale artefacts, untouched: `verify-settings.ps1 -FromGear` still pins EXP03's sample name
   `Settings for AOC Q27G3G3R3`, and `verify.ps1`/`verify-control.ps1` need a non-empty `-AppArgs` -
   now `--no-schedule` too, when they drive a slider.

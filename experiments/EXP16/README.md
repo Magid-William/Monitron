@@ -63,3 +63,12 @@ unsigned); or the release being unreachable or not the one a visitor is offered.
 _Pending._
 
 ## Learnings
+- A PowerShell function named `Git` shadows the native `git` - the names are case-insensitive, so
+  `& git` inside it calls the function again: `git rev-parse` recursed thousands of times a second
+  and the script never returned. Name a command wrapper something that is not a command (`GitRun`),
+  the same way this repo names each verifier's `Add-Type` class per experiment.
+- A script that checks, builds and only then prints looks *hung* while it works: the first dry run
+  printed nothing at all for three minutes, so a slow step and an infinite loop were
+  indistinguishable. `release.ps1` now says what it is doing before it does it.
+- `-DryRun` first, on the released branch: it is what surfaced the recursion, and then the
+  uncommitted-tree guard when the fix itself was still unstaged.

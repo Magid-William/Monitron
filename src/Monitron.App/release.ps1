@@ -28,36 +28,40 @@ $root = Split-Path -Parent (Split-Path -Parent $here)
 $tag = "v$Version"
 $exe = Join-Path $here 'Monitron.App.exe'
 
-function Git([string[]]$argv) {
+# Named GitRun, not Git: PowerShell is case-insensitive, so a function called Git shadows the native
+# git, and `& git` inside it would call the function again - forever.
+function GitRun([string[]]$argv) {
     $out = & git -C $root @argv
     if ($LASTEXITCODE -ne 0) { throw "git $($argv -join ' ') failed with exit $LASTEXITCODE" }
     return $out
 }
 
 # --- the released line and a clean tree: the tag has to name the commit the exe was built from ---
-$branch = [string](Git @('rev-parse', '--abbrev-ref', 'HEAD'))
+$branch = [string](GitRun @('rev-parse', '--abbrev-ref', 'HEAD'))
 if ($branch.Trim() -ne 'main') {
     throw "a release is cut from main, not '$($branch.Trim())'. Fast-forward main onto this branch first."
 }
-$dirty = [string](Git @('status', '--porcelain', '--untracked-files=no'))
+$dirty = [string](GitRun @('status', '--porcelain', '--untracked-files=no'))
 if ($dirty.Trim().Length -gt 0) {
     throw "the tree has uncommitted changes; a release must be the commit `git` records:`n" + $dirty
 }
-Git @('fetch', '--quiet', 'origin', 'main') | Out-Null
-$behind = [string](Git @('rev-list', '--count', 'main..FETCH_HEAD'))
+GitRun @('fetch', '--quiet', 'origin', 'main') | Out-Null
+$behind = [string](GitRun @('rev-list', '--count', 'main..FETCH_HEAD'))
 if ($behind.Trim() -ne '0') {
     throw "main is $($behind.Trim()) commit(s) behind origin/main - push it before releasing."
 }
-$commit = [string](Git @('rev-parse', '--short', 'HEAD'))
+$commit = [string](GitRun @('rev-parse', '--short', 'HEAD'))
 $commit = $commit.Trim()
 
 # --- the tag: one release per version, and it must be the one that was just pushed ---
-$existing = [string](Git @('ls-remote', '--tags', 'origin', "refs/tags/$tag"))
+$existing = [string](GitRun @('ls-remote', '--tags', 'origin', "refs/tags/$tag"))
 if ($DryRun -eq $false -and $existing.Trim().Length -gt 0) {
     throw "$tag already exists on origin - a version is released once. Pick the next one."
 }
 
 # --- the build: the exe the tag will carry ---
+Write-Host "checks   on $($branch.Trim()), clean tree, up to date with origin/main, $tag is free"
+Write-Host "building $exe"
 & (Join-Path $here 'build.ps1')
 if (-not (Test-Path $exe)) { throw "build.ps1 did not produce $exe" }
 
@@ -119,8 +123,8 @@ if ($DryRun) {
 }
 
 # --- tag and push, so the release names a commit that is already on origin ---
-Git @('tag', '-a', $tag, '-m', "Monitron $Version") | Out-Null
-Git @('push', 'origin', $tag) | Out-Null
+GitRun @('tag', '-a', $tag, '-m', "Monitron $Version") | Out-Null
+GitRun @('push', 'origin', $tag) | Out-Null
 Write-Host "pushed tag $tag"
 
 # --- publish. --verify-tag: the release must point at the tag that was just pushed ---

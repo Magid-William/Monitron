@@ -40,7 +40,9 @@ function Check($condition, [string]$what) {
 }
 function Note([string]$what) { Write-Host "  .... $what" }
 
-function Git([string[]]$argv) {
+# Named GitRun, not Git: PowerShell is case-insensitive, so a function called Git shadows the native
+# git, and `& git` inside it would call the function again - forever.
+function GitRun([string[]]$argv) {
     $out = & git -C $root @argv 2>&1
     if ($LASTEXITCODE -ne 0) { throw "git $($argv -join ' ') failed with exit $LASTEXITCODE`: $out" }
     return $out
@@ -71,8 +73,8 @@ Check ($asset.size -gt 0) "the asset is not empty ($($asset.size) bytes)"
 Note "asset $($asset.name)  $($asset.size) bytes"
 
 # ------------------------------------------------------------- the tag is a commit on origin/main
-Git @('fetch', '--quiet', 'origin', 'main') | Out-Null
-$remoteMain = ([string](Git @('rev-parse', 'FETCH_HEAD'))).Trim()
+GitRun @('fetch', '--quiet', 'origin', 'main') | Out-Null
+$remoteMain = ([string](GitRun @('rev-parse', 'FETCH_HEAD'))).Trim()
 $refs = & git ls-remote --tags origin
 $tagRef = $refs | Where-Object { $_ -match "refs/tags/$([regex]::Escape($Tag))$" } | Select-Object -First 1
 $peelRef = $refs | Where-Object { $_ -match "refs/tags/$([regex]::Escape($Tag))\^\{\}$" } | Select-Object -First 1

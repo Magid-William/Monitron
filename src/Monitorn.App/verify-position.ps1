@@ -189,7 +189,7 @@ function ClassName([IntPtr]$h) {
 function TaskbarFor([IntPtr]$monitor) {
     $primary = [WinExp09]::FindWindow('Shell_TrayWnd', $null)
     if ($primary -ne [IntPtr]::Zero -and [WinExp09]::MonitorFromWindow($primary, 2) -eq $monitor) { return $primary }
-    $found = [IntPtr]::Zero
+
     $cb = [WinExp09+EnumProc] {
         param($h, $l)
         # The class into a variable first: `ClassName $h -eq 'X'` binds -eq as a parameter name of

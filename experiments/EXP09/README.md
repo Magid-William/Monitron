@@ -180,32 +180,79 @@ Boundaries this run does not cross:
   geometry that shell will open into.
 
 ## Conclusion (findings)
-_Pending._
+**`success`** (2026-10-15, user-declared). The surface opens in the notification area's corner of the
+monitor it is on, above that monitor's taskbar, like a tray flyout - driven and asserted from outside
+the app, not described.
+
+What this settles:
+- **The position is derived, not hardcoded.** The window's own monitor (`MonitorFromWindow`), that
+  monitor's `rcWork`, its DPI and its taskbar's rectangle are enough: no tray icon, no owner window,
+  no absolute coordinates. `Placement.cs` is a pure rule (63 headless assertions), and
+  `verify-position.ps1` measures the real window with two outside witnesses - UI Automation's
+  bounding rectangle for the window and for the clock, Win32's work area and taskbar - plus the app's
+  own report, and all three agree exactly.
+- **The two predicted resisters were real.** `SizeToContent = Height` means the height arrives after
+  the first layout, so the placement runs on `Loaded`/`SizeChanged`; and the px<->DIP conversion
+  through the monitor's own DPI is load-bearing - a scripted 96 dpi reading moved the same window
+  480 px, half off the screen.
+- **"Near the clock above the taskbar" is a number.** 10 px (the 8 DIP margin) in from the work area's
+  right edge and 10 px above the taskbar; the window's right edge reaches 45 px past the clock's right
+  edge, inside the notification area's column and no further right than the Show Desktop strip.
+  Unplaced it was the OS cascade, `(96,96)-(596,531)`.
+- **Per-monitor, not primary-assumed.** A second display at a negative origin with its own taskbar and
+  work area: the window lands inside it, right-aligned, above that display's own taskbar.
+- **Both windows behave.** The settings window keeps `CenterOwner` and is clamped into the work area -
+  measured both ways: a no-op at the default 400 DIP surface, and the fix when the settings window is
+  wider than the surface (28 px off the screen otherwise).
+- **Nothing else moved.** 38 / 19 / 114 / 42 / 34 headless and 30 / 27 / 42 end to end pass; every run
+  left the display at 57 and the user's real `%APPDATA%\Monitorn\settings.ini` untouched.
+
+What it deliberately does not settle - the boundary:
+- **Only the bottom taskbar is real on this machine.** All four edges are in the pure model, and the
+  `top` corner was driven physically through the seam; a real top/left/right taskbar and an auto-hiding
+  one were not.
+- **`WM_SETTINGCHANGE` was not observed arriving from Windows.** Moving the user's real taskbar is not a
+  verifier's to do: the live re-place was driven through the injected reading 4 s into a run.
+- **The second display's placement is injected, not chosen.** The app places on the monitor it is on
+  (the user's rule); there is no way to pick another display, and none was added.
+- **Not the tray shell.** No icon, no autostart, no z-order or activation change: the surface is still
+  an ordinary taskbar window with the usual close behaviour.
+- **The brightness regressions are un-runnable here.** `verify-control.ps1` and `verify-schedule.ps1`
+  assert exactly one row and this machine now reports two active targets; proven not to be this
+  change (identical failures on EXP08's own build, and the independent probe says "active targets: 2").
+
+Next, in the order the seams suggest: **relax the two single-row verifiers to N displays** (the
+brightness path and the scripted night currently have no working end-to-end regression), then the
+overview's standing step, the **tray shell + autostart** - the corner this experiment proved is the
+geometry that shell opens into - then a stored `theme=` preference plus a switch, real
+sunset/sunrise, and per-monitor profiles.
+
+Evidence: the commands above; the reports and the corner screenshots in `%TEMP%\monitorn-exp09`.
 
 ## Learnings
-- On this build (Windows 11 25H2, 26200) the tray clock is a UI Automation child of **`Shell_TrayWnd`
-  itself**, ClassName `SystemTray.OmniButtonLeft`; `TrayClockWClass` no longer exists (an empty rect)
-  and `TrayNotifyWnd` is a childless **leaf sibling** of it, so searching inside the tray pane finds
-  nothing. Match the clock by ClassName - its `Name` is localized ("Clock 4:42 PM ...").
-- In a PowerShell scriptblock turned into a native callback, `ClassName $h -eq 'X'` binds `-eq` as a
-  *parameter name* of the `ClassName` function, matches nothing and reports no error. Read it into a
-  variable first (`$c = ClassName $h; if ($c -eq 'X')`). It cost a bogus "taskbar" from another app.
-- `SystemParameters.WorkArea` is the primary monitor's work area in DIPs, so it cannot place a window
-  on the monitor the window is actually on; `MonitorFromWindow` + `GetMonitorInfo` + the monitor's own
-  DPI can, negative origins included.
-- Windows 11 gives **every** display its own taskbar (`Shell_SecondaryTrayWnd`, with its own work area
-  and its own clock strip) and only the primary has the tray clock. `FindWindow("Shell_TrayWnd")` is
-  therefore the wrong taskbar for a window on a secondary display.
-- Recorded geometry of this machine, useful as fixtures: primary `\\.\DISPLAY2` `(0,0)-(1920,1080)`,
-  work area `(0,0)-(1920,1020)` px = `(0,0)-(1536,816)` DIP at 120 dpi, taskbar `(0,1020)-(1920,1080)`,
-  clock `(1778,1020)-(1865,1080)`; secondary `\\.\DISPLAY1` `(-2560,-846)-(0,594)`, work area ends at
-  534.
+- Place a flyout with `MonitorFromWindow` + `GetMonitorInfo` (`rcMonitor`, `rcWork`) +
+  `GetDpiForMonitor` for **the window's own monitor** - `SystemParameters.WorkArea` is only the
+  primary's, in DIPs, and cannot do that. Windows 11 gives every display its own taskbar
+  (`Shell_TrayWnd` vs `Shell_SecondaryTrayWnd`) and its own work area; only the primary has the clock.
 - `Window.SizeToContent = Height` leaves `ActualHeight` at 0 until layout, so a placement attached to
-  `SourceInitialized` alone silently does nothing; place on `Loaded` **and** on `SizeChanged`, and
-  keep `WindowStartupLocation = Manual` or WPF's own centring/cascade fights the coordinates.
-- The occupied taskbar area and the notification area are not where the *edges* are: the clock's right
-  edge sits ~55 px inside the screen's (~44 DIP at 125 %), so "flush to the work area's right edge"
-  still reads as "beside the clock". Both are worth asserting, they are different numbers.
-- `verify-control.ps1` / `verify-schedule.ps1` assume **exactly one** active target; on a machine with
-  an internal panel plus an external one they stop before driving anything. Check
-  `probe.exe`'s "active targets" before reading their result as a regression.
+  `SourceInitialized` alone silently does nothing: place on `Loaded` **and** re-place on
+  `SizeChanged`, and keep `WindowStartupLocation = Manual` or WPF's own centring/cascade fights the
+  coordinates. px<->DIP through the monitor's DPI is load-bearing (a wrong reading moved the window
+  480 px).
+- On this build (Windows 11 25H2, 26200) the tray clock is a UI Automation child of `Shell_TrayWnd`
+  itself, ClassName `SystemTray.OmniButtonLeft`; `TrayClockWClass` is gone and `TrayNotifyWnd` is a
+  childless **leaf sibling**, so searching inside the tray pane finds nothing. Match it by ClassName -
+  its `Name` is localized ("Clock 4:42 PM ...").
+- UI Automation's `BoundingRectangle`, Win32's `GetWindowRect` and WPF's `Left/Top` x scale agreed
+  **exactly** on this window, so a position assertion needs no invisible-DWM-border fudge: assert the
+  visible frame against the work area and the taskbar, and compare the app's report with both.
+- Machine fixtures worth keeping: primary `\\.\DISPLAY2` `(0,0)-(1920,1080)`, work area
+  `(0,0)-(1920,1020)` px = `(0,0)-(1536,816)` DIP at 120 dpi, taskbar `(0,1020)-(1920,1080)`, clock
+  `(1778,1020)-(1865,1080)`; secondary `\\.\DISPLAY1` `(-2560,-846)-(0,594)`, work area ends at 534,
+  its own taskbar at `534`-`594`.
+- In a PowerShell scriptblock turned into a native callback, `ClassName $h -eq 'X'` binds `-eq` as a
+  *parameter name* of the `ClassName` function: it matches nothing and reports no error. Read it into a
+  variable first. It cost a bogus "taskbar" borrowed from another app's window.
+- `verify-control.ps1` / `verify-schedule.ps1` assume **exactly one** active target and stop before
+  driving anything otherwise. Read `probe.exe`'s "active targets" before calling their result a
+  regression - this machine now has an internal panel beside the AOC.

@@ -13,7 +13,7 @@ only the user declares the final status.
 | EXP06 | Apply the night-light schedule (scheduler FSM + real monitors) | success | EXP06 | 2026-10-15 | 2026-10-15 | [experiments/EXP06/README.md](experiments/EXP06/README.md) |
 | EXP07 | Persist the schedule settings (a file behind the window) | success | EXP07 | 2026-10-15 | 2026-10-15 | [experiments/EXP07/README.md](experiments/EXP07/README.md) |
 | EXP08 | Dark mode: the app's windows follow the Windows app theme | success | EXP08 | 2026-10-15 | 2026-10-15 | [experiments/EXP08/README.md](experiments/EXP08/README.md) |
-| EXP09 | Screen position: the surface as a bottom-right flyout, near the clock | inProg | EXP09 | 2026-10-15 | - | [experiments/EXP09/README.md](experiments/EXP09/README.md) |
+| EXP09 | Screen position: the surface as a bottom-right flyout, near the clock | success | EXP09 | 2026-10-15 | 2026-10-15 | [experiments/EXP09/README.md](experiments/EXP09/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -123,3 +123,36 @@ EXP07 made to `verify-settings.ps1`, because an inherited `gradualFade=false` ma
 unobservable. Recommend **EXP09 = the tray shell + autostart** (still the standing step), then a
 stored `theme=` preference plus a switch in the settings window - small now - then real
 sunset/sunrise, then per-monitor profiles.
+
+**EXP09:** `success` (user-declared). The screen position, the user's ask - it took the number EXP08
+had recommended for the tray shell, which stays the standing step, now EXP10+. The surface no longer
+cascades: it opens in the notification area's corner of **the monitor it is on** (`MonitorFromWindow`
++ `GetMonitorInfo`'s `rcWork` + `GetDpiForMonitor` - not `SystemParameters.WorkArea`, which is only
+the primary's and only in DIPs), 8 DIP in from that monitor's work-area right edge and 8 DIP above its
+taskbar. `Placement.cs` is the pure rule (which edge a taskbar is docked on, the corner that implies,
+the clamp that keeps the box on screen); `SystemPlacement.cs` is the only part that reads the OS;
+`PlacementApp.cs` attaches it to the window on `Loaded` and re-runs it on `SizeChanged` (because
+`SizeToContent = Height` makes the height arrive after the first layout) and on
+`WM_SETTINGCHANGE`/`WM_DISPLAYCHANGE`/`WM_DPICHANGED`; the settings window keeps `CenterOwner` and
+gains a work-area clamp. The reading is injectable (`--place-edge`, `--place-dpi`, `--place-work`,
+`--place-after`, `--place-report`; `--no-place` is the baseline), so a verifier drives another taskbar
+edge, another DPI or a work area that shrinks while the window runs without touching the user's
+desktop. **Run 2026-10-15:** 63 headless assertions and 60 end-to-end checks, asserted from outside
+the app - UI Automation's bounding rectangle for the window *and for the clock* (a taskbar button,
+ClassName `SystemTray.OmniButtonLeft`; `TrayClockWClass` is gone on 25H2 and `TrayNotifyWnd` is a
+childless leaf) and Win32's work area and taskbar - with the app's own report agreeing with both
+exactly, pixel for pixel. Placed `(1410,575)-(1910,1010)` px: the 8 DIP margin both ways and 45 px
+right of the clock's right edge; unplaced, the old cascade `(96,96)-(596,531)`. The second display
+(a negative origin, its own `Shell_SecondaryTrayWnd`) is respected per monitor, and both windows stay
+on screen - the clamp is a no-op at the default width and the fix when the settings window is wider
+than the surface (measured at `--width 320`). Regressions 38 / 19 / 114 / 42 / 34 headless and
+30 / 27 / 42 end to end. Boundaries: only the bottom taskbar is real on this machine (the other edges
+are the model's, one of them driven through the seam), `WM_SETTINGCHANGE` itself is wired but not
+injected, auto-hide is untested, and the second display's placement is injected rather than chosen.
+**`verify-control.ps1` and `verify-schedule.ps1` could no longer run to completion**: this machine now
+reports **two** active targets (an internal panel beside the AOC) and both assert exactly one row -
+proven not to be this change (identical failures on EXP08's own build, and the independent probe says
+"active targets: 2"), so the brightness path and the scripted night currently have no working
+end-to-end regression. Recommend **EXP10 = relax those two verifiers to N displays**, then the
+standing **tray shell + autostart** - the corner this experiment proved is the geometry that shell
+opens into - then the stored `theme=` preference, real sunset/sunrise, per-monitor profiles.

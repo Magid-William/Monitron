@@ -5,6 +5,9 @@
 // EXP08 - and the theme: one palette both windows draw from (Theme.cs), following the Windows app
 //         theme, with the dark title bar and the control templates the OS theme would keep light
 //         (Theming.cs, SystemTheme.cs). --theme and --theme-report are its verification seams.
+// EXP09 - and the screen position: the surface sits in the notification area's corner of the monitor
+//         it is on, above that monitor's taskbar, like a tray flyout (Placement.cs, SystemPlacement.cs,
+//         PlacementApp.cs). --no-place and --place-* are its verification seams.
 //
 // One row per ACTIVE display: its real name, its real current brightness on a slider, and a gear
 // that opens the settings window (EXP04). Dragging a slider is debounced by BrightnessWriter and
@@ -277,6 +280,12 @@ namespace Monitorn.App
             string reportDir = null;      // --theme-report <dir>: render and sample both windows
             TimeSpan? toggleAfter = null; // --theme-toggle-after <sec> <light|dark>: drive a live switch
             bool toggleLight = false;
+            bool place = true;            // --no-place: leave the window where Windows puts it (the baseline)
+            double placeMargin = Place.DefaultMargin; // --place-margin N: clearance from the corner, in DIPs
+            TaskbarEdge? placeEdge = null;   // --place-edge bottom|top|left|right: as if the taskbar were docked there
+            double? placeDpi = null;         // --place-dpi N: as if the monitor scaled differently
+            PlacementBox? placeWork = null;  // --place-work L,T,R,B: as if the work area were this (pixels)
+            string placeReportDir = null;    // --place-report <dir>: the reading and the computed rectangle
 
             for (int i = 0; i < args.Length; i++)
             {
@@ -305,6 +314,24 @@ namespace Monitorn.App
                     toggleAfter = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
                     SetOsTheme(args[++i], out toggleLight);
                 }
+                else if (a == "--no-place") place = false;
+                else if (a == "--place-margin" && i + 1 < args.Length) placeMargin = double.Parse(args[++i], CultureInfo.InvariantCulture);
+                else if (a == "--place-edge" && i + 1 < args.Length)
+                {
+                    TaskbarEdge edge;
+                    if (!PlacementGeometry.TryParseEdge(args[++i], out edge))
+                        throw new ArgumentException("--place-edge takes bottom, top, left or right");
+                    placeEdge = edge;
+                }
+                else if (a == "--place-dpi" && i + 1 < args.Length) placeDpi = double.Parse(args[++i], CultureInfo.InvariantCulture);
+                else if (a == "--place-work" && i + 1 < args.Length)
+                {
+                    PlacementBox box;
+                    if (!PlacementGeometry.TryParseBox(args[++i], out box))
+                        throw new ArgumentException("--place-work takes L,T,R,B in whole pixels");
+                    placeWork = box;
+                }
+                else if (a == "--place-report" && i + 1 < args.Length) placeReportDir = args[++i];
             }
 
             var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
@@ -381,6 +408,19 @@ namespace Monitorn.App
                 double seconds = toggleAfter.HasValue ? toggleAfter.Value.TotalSeconds + 1.5 : 2.0;
                 ThemeReport.Run(app, theme, reportDir, window, SettingsSurface.Build(settings, theme), seconds);
                 return;
+            }
+
+            // --- the position: the notification area's corner of the monitor this window is on ---
+            // The reading is injectable (--place-edge / --place-dpi / --place-work) so a verifier can
+            // drive another taskbar edge, another DPI or another work area without moving the user's
+            // taskbar; --no-place is the baseline everything else is measured against.
+            if (place)
+            {
+                var placeScript = new PlacementScript { Edge = placeEdge, Dpi = placeDpi, WorkArea = placeWork };
+                Func<IntPtr, PlacementReading> placementReading = placeScript.Any
+                    ? (Func<IntPtr, PlacementReading>)delegate(IntPtr hwnd) { return placeScript.Apply(SystemPlacement.Read(hwnd)); }
+                    : SystemPlacement.Read;
+                Place.Attach(window, placementReading, placeMargin, placeReportDir);
             }
 
             // A real edit is written to the file at once; a failed write is surfaced on the status

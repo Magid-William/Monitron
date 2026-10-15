@@ -59,21 +59,46 @@ tray is elsewhere.
       the anchor, so `--place-anchor` alone is what a verifier varies.
 
 ## Conclusion (findings)
-_Pending the user's declaration._
+`success` (user-declared). The surface now follows the tray. The whole app change is **one OS read
+moved and one hook repaired**: `SystemPlacement.Read(hwnd, preferTray)` takes the target monitor from
+the notification area (`FindWindow("Shell_TrayWnd")` -> `MonitorFromWindow`) instead of the window's
+own, with `PlacementChoice.Choose(trayFound, askedForWindow)` as the pure rule and the window's
+monitor only as the fallback; `PlacementApp.Follow` adds its re-place hook on the spot through
+`WindowHook.Add`, where EXP09's `SourceInitialized` subscription had never run. `--place-report`
+gained `anchor=` and `placements=`; `--place-anchor tray|window` and `--place-monitor L,T,R,B` are the
+seams, and the geometry overrides apply only while the tray is the anchor, so the anchor is the single
+variable.
+
+**Run 2026-10-16.** The machine reports two active targets (the internal panel beside the AOC).
+- Headless `position-test.ps1`: **70 assertions, 0 failed** (63 before; +7 for the anchor rule).
+- End to end `verify-position.ps1`: **71 checks, 0 failed** (60 before). With the window on the
+  primary and the same seams saying "the tray is on the other display", `--place-anchor window` keeps
+  the surface on the window's own display (`\\.\DISPLAY2`) while `--place-anchor tray` really opens it
+  on the tray's display (`\\.\DISPLAY1`, a negative origin), confirmed by UI Automation's rectangle
+  and Win32's `GetMonitorInfo` with the app's `--place-report` agreeing. A posted real
+  `WM_DISPLAYCHANGE` moved `placements` **2 -> 3**: the hook fires (it did not under EXP09). The
+  read-only probe read the same 32 across every run.
+- Every standing suite re-run green: headless 38 / 19 / 114 / 42 / 34 / 49 / 35 / 32 and end to end
+  tray **55**, displays **14**, theme **42**, settings **30**, persistence **27**, icon **33**, slider
+  **55**, control **28**, schedule **35** (all 0 failed; every display left at its original 32).
+
+**Boundaries.** The anchor is `Shell_TrayWnd`'s monitor - the main taskbar, where the clock and system
+tray live - and a `Shell_SecondaryTrayWnd` is not followed, so a user who clicks the app's icon on a
+*secondary* taskbar (shown when "taskbar on all displays" is on) still gets the main taskbar's
+monitor. On this machine the tray and the window share the primary, so the anchor's effect is proven
+with an injected topology (the tray scripted onto the other display) and a posted message; the real
+"the tray moved" is not reproduced (that would mean changing the user's displays). `WM_DEVICECHANGE`
+is not subscribed (EXP14's boundary). The settings window's clamp follows the same tray reading.
 
 ## Learnings
-- The surface's monitor came from `MonitorFromWindow(window)` - the surface's own monitor, which a
-  hidden window keeps stale - so a tray that moved to another monitor did not move the surface.
-  Take it from the notification area instead: `FindWindow("Shell_TrayWnd", null)` then
-  `MonitorFromWindow(bar)`, which tracks the tray. `PlacementChoice.Choose(trayFound, askedForWindow)`
-  is the pure rule; `SystemPlacement.Read(hwnd, preferTray)` is the only OS read.
-- `WindowHook.Add` (EXP14) is the way to add a window-message hook: `SourceInitialized` has already
-  fired because `Theming.Bind` calls `EnsureHandle()` in the surface's constructor. This is why EXP09's
-  own re-place hook had never run.
-- Prove a re-place hook with a real message and an app counter: post `WM_DISPLAYCHANGE`
-  (`PostMessage(hwnd, 0x007E, 0, 0)`) and read `--place-report`'s `placements=` before and after
-  (2 -> 3). "It is wired" is worth nothing.
-- Gate the `--place-monitor`/`--place-work`/`--place-dpi`/`--place-edge` overrides on the reading's own
-  anchor (`real.Anchor == "tray"` in `PlacementScript.Apply`), so `--place-anchor tray|window` is the
-  single variable an end-to-end run changes; the window anchor reads the real desktop and the seams
-  are inert.
+- Reopen where it was last: a hidden window keeps its `Left/Top`, so a re-place that reads
+  `MonitorFromWindow(window)` returns the stale monitor. Anchor on the thing that moved instead - the
+  notification area: `FindWindow("Shell_TrayWnd")` then `MonitorFromWindow(bar)`.
+- `WindowHook.Add` is the way to add a window-message hook on this app's surface: `Theming.Bind` calls
+  `EnsureHandle()` in its constructor, so `SourceInitialized` has already fired and a hook added on it
+  never runs (why EXP09's re-place hook was inert all along).
+- Prove a message hook with a real message and an app counter: post `WM_DISPLAYCHANGE`
+  (`PostMessage(hwnd, 0x007E, 0, 0)`) and read `--place-report`'s `placements=` before/after (2 -> 3).
+- Gate injected seams on the reading they model (`real.Anchor == "tray"`): it turns "the anchor
+  decides" into a single-variable end-to-end run - `--place-anchor window` reads the real desktop and
+  the geometry seams are inert.

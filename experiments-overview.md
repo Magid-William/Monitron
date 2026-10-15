@@ -19,7 +19,7 @@ only the user declares the final status.
 | EXP12 | The app icon: the neon-green logo, as the app's one multi-size .ico | success | EXP12 | 2026-10-15 | 2026-10-15 | [experiments/EXP12/README.md](experiments/EXP12/README.md) |
 | EXP13 | The slider knob: a click lands where you clicked | success | EXP13 | 2026-10-15 | 2026-10-15 | [experiments/EXP13/README.md](experiments/EXP13/README.md) |
 | EXP14 | Live displays: re-detect the display set on a display change | success | EXP14 | 2026-10-16 | 2026-10-16 | [experiments/EXP14/README.md](experiments/EXP14/README.md) |
-| EXP15 | The surface follows the tray: it opens on the notification area's monitor | inProg | EXP15 | 2026-10-16 | - | [experiments/EXP15/README.md](experiments/EXP15/README.md) |
+| EXP15 | The surface follows the tray: it opens on the notification area's monitor | success | EXP15 | 2026-10-16 | 2026-10-16 | [experiments/EXP15/README.md](experiments/EXP15/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -296,3 +296,23 @@ screen - was attempted as a pointer-driven placement, driven, then **rolled back
 opened in a monitor's `0,0` and did not follow the user between monitors); `SystemPlacement`,
 `PlacementApp` and `Placement` are restored to EXP09, and issue 2 becomes its own experiment with the
 recommendation to try a *remembered* screen (persisted, mouse-free).
+
+**EXP15:** `success` (user-declared). Issue 2 - the surface opening on the wrong screen - and the user's
+own words for the right one: where the tray is. EXP09 derived the monitor from `MonitorFromWindow(window)`,
+the surface's own, which a **hidden** window keeps stale, so a tray that moved to another display did
+not move the surface; EXP09's `WM_DISPLAYCHANGE` re-place hook was inert (added on `SourceInitialized`,
+which had already fired - EXP14's finding). Now `SystemPlacement.Read(hwnd, preferTray)` takes the
+monitor from the notification area (`FindWindow("Shell_TrayWnd")` -> `MonitorFromWindow`), re-read on
+launch, on Show and on a message, with `PlacementChoice.Choose` the pure rule and the window's monitor
+only the fallback, and `PlacementApp.Follow` adds the hook on the spot via `WindowHook.Add`. Seams
+`--place-anchor tray|window` and `--place-monitor L,T,R,B` (the geometry overrides apply only while the
+tray is the anchor, so the anchor is the single variable); `--place-report` gained `anchor=` and
+`placements=`. **Run 2026-10-16:** `position-test` **70** and `verify-position` **71** (0 failed) - with
+the window on the primary and the same seams saying "the tray is on the other display",
+`--place-anchor window` keeps it on `DISPLAY2` while `--place-anchor tray` opens it on `DISPLAY1` (a
+negative origin), and a posted real `WM_DISPLAYCHANGE` moved `placements` **2 -> 3**. All standing
+suites green (headless 38 / 19 / 114 / 42 / 34 / 49 / 35 / 32; end to end tray 55, displays 14, theme
+42, settings 30, persistence 27, icon 33, slider 55, control 28, schedule 35). Boundaries: the anchor
+is the main taskbar's monitor, so an icon clicked on a *secondary* taskbar (taskbar on all displays) is
+not followed; the "tray moved" is injected, never made. Recommend the standing steps: the stored
+`theme=` preference, then real sunset/sunrise by location, then per-monitor profiles.

@@ -60,26 +60,56 @@ unsigned); or the release being unreachable or not the one a visitor is offered.
       endpoint a visitor uses, not on the local build.
 
 ## Conclusion (findings)
-_Pending._
+`success` (user-declared). Monitron has a download. **v1.0.0** is a GitHub Release on
+`Magid-William/Monitron` - tag `v1.0.0` at commit `54e0145` on `main`, marked **Latest**, carrying one
+asset: `Monitron.exe`, 254,464 bytes, unsigned (`NotSigned`, no signer certificate), with notes that
+print the SHA-256 and the SmartScreen step. `README.md`'s *Getting it* now sends a visitor to that
+page instead of to a build command. Two scripts do it and check it: `release.ps1` (refuses off `main`
+or on a dirty tree, builds, hashes, tags, pushes and publishes; `-DryRun` publishes nothing) and
+`verify-release.ps1` (reads the release back, downloads the asset, drives it).
+
+**Run 2026-10-16.** The nine headless suites first - **433 assertions, 0 failed** - then
+`release.ps1 -DryRun`, then the real run, and then the witness: **`verify-release.ps1` 29 checks,
+0 failed**, all of it against the *published* artifact rather than the local build.
+- the releases API says it is Latest; `gh release view` says not a draft, not a prerelease, exactly
+  one asset, named `Monitron.exe`;
+- the annotated tag peels to `54e0145`, which is on `origin/main`;
+- `gh release download` brought the asset back at 254,464 bytes, and its SHA-256
+  (`3ECA95A1...AFE3`) equals the local build's own hash - the published bytes **are** the build's;
+- `Get-AuthenticodeSignature` is `NotSigned` with no signer certificate, and the notes say so and
+  print the same hash;
+- the **downloaded** exe, run out of its download folder with a throwaway settings file and
+  `--no-schedule`, opened its window (`Monitron`), read all nine frames out of its embedded
+  `Monitron.ico` (16,20,24,32,40,48,64,128,256), detected this machine's display read-only (the AOC,
+  `cur=32`) and exited 0.
+
+Nothing of the user's was touched: the run used a throwaway settings file and a throwaway Run value
+name, the real `%APPDATA%\Monitron\settings.ini` kept its byte-for-byte size and timestamp, and the
+read-only probe read the same 32 before and after.
+
+**Boundaries.** The tag names `54e0145`; the one commit after it (the verifier's Latest fix and the
+Learnings above) touches no app source, so `main` sits one commit past the release and GitHub says so
+on the release page. The release is unsigned by decision, not by omission - a certificate is a
+purchase and an identity, and the claim here is that the download is complete without one - and
+**SmartScreen's first-run warning is the one thing not witnessed**: `gh release download` attaches no
+`Zone.Identifier` (checked: the file has only `:$DATA`), so a downloaded file on this machine never
+wore the mark that warning keys on, let alone on another Windows version. Nor is the `--hidden`
+autostart path a downloaded user would switch on afterwards. Nothing here signs anything.
 
 ## Learnings
-- A PowerShell function named `Git` shadows the native `git` - the names are case-insensitive, so
-  `& git` inside it calls the function again: `git rev-parse` recursed thousands of times a second
-  and the script never returned. Name a command wrapper something that is not a command (`GitRun`),
-  the same way this repo names each verifier's `Add-Type` class per experiment.
-- A script that checks, builds and only then prints looks *hung* while it works: the first dry run
-  printed nothing at all for three minutes, so a slow step and an infinite loop were
-  indistinguishable. `release.ps1` now says what it is doing before it does it.
-- `-DryRun` first, on the released branch: it is what surfaced the recursion, and then the
-  uncommitted-tree guard when the fix itself was still unstaged.
-- A function that emits nothing leaves a call-site `[string]` cast with AutomationNull, not `""`, so
-  a clean `git status` (no output) broke the next `.Trim()`. Join inside the wrapper
-  (`return ($out -join "`n")`) instead of casting the call.
-- `gh release view --json` has no `isLatest` field (gh 2.86): ask
-  `gh api repos/<owner>/<repo>/releases/latest --jq .tag_name` for what "Latest" means.
-- Verify a release on the **published asset**, not the local build: `gh release download` through the
-  same endpoint a browser uses, then hash-compare and run it. `Get-AuthenticodeSignature` is how
-  "unsigned" stops being a description and becomes an assertion (`NotSigned`).
-- Resolve paths from `$PSCommandPath`, as `build.ps1` does: `release.ps1` and `verify-release.ps1` run
-  the same from the repo root and from `src\Monitron.App\`, because neither trusts the working
-  directory.
+- Never name a wrapper after the command it runs: PowerShell is case-insensitive, so `function Git`
+  shadows native `git` and `& git` inside it recursed forever (`git rev-parse`, thousands a second).
+  Use `GitRun` - the same reason each verifier names its `Add-Type` class per experiment.
+- A function that emits nothing leaves a call-site `[string]` cast with AutomationNull, not `""`: a
+  clean `git status` broke the next `.Trim()`. Join inside the wrapper: `return ($out -join "`n")`.
+- Print before the slow step. `release.ps1` checked and built in silence, so a three-minute dry run
+  looked exactly like an infinite loop. `-DryRun` on the released branch first: it caught the
+  recursion and, next time, the uncommitted-tree guard.
+- `gh release view --json` has no `isLatest` (gh 2.86); "Latest" is
+  `gh api repos/<owner>/<repo>/releases/latest --jq .tag_name`.
+- Verify a release on the **published asset**: `gh release download` through the endpoint a browser
+  uses, hash-compare it with the build, and run it. `Get-AuthenticodeSignature` turns "unsigned" into
+  an assertion (`NotSigned`). `gh`'s download adds no `Zone.Identifier`, so SmartScreen's first-run
+  warning cannot be reproduced that way.
+- Resolve paths from `$PSCommandPath` (as `build.ps1` does) so the scripts run from the repo root and
+  from `src\Monitron.App\` alike.

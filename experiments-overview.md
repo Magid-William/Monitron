@@ -20,7 +20,7 @@ only the user declares the final status.
 | EXP13 | The slider knob: a click lands where you clicked | success | EXP13 | 2026-10-15 | 2026-10-15 | [experiments/EXP13/README.md](experiments/EXP13/README.md) |
 | EXP14 | Live displays: re-detect the display set on a display change | success | EXP14 | 2026-10-16 | 2026-10-16 | [experiments/EXP14/README.md](experiments/EXP14/README.md) |
 | EXP15 | The surface follows the tray: it opens on the notification area's monitor | success | EXP15 | 2026-10-16 | 2026-10-16 | [experiments/EXP15/README.md](experiments/EXP15/README.md) |
-| EXP16 | The download: an unsigned release of the exe, proven by fetching it back | inProg | EXP16 | 2026-10-16 | - | [experiments/EXP16/README.md](experiments/EXP16/README.md) |
+| EXP16 | The download: an unsigned release of the exe, proven by fetching it back | success | EXP16 | 2026-10-16 | 2026-10-16 | [experiments/EXP16/README.md](experiments/EXP16/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -317,3 +317,25 @@ suites green (headless 38 / 19 / 114 / 42 / 34 / 49 / 35 / 32; end to end tray 5
 is the main taskbar's monitor, so an icon clicked on a *secondary* taskbar (taskbar on all displays) is
 not followed; the "tray moved" is injected, never made. Recommend the standing steps: the stored
 `theme=` preference, then real sunset/sunrise by location, then per-monitor profiles.
+
+**EXP16:** `success` (user-declared). The download the README had promised and the project never had.
+**v1.0.0** is a GitHub Release on `Magid-William/Monitron` — the tag at commit `54e0145` on `main`,
+marked **Latest**, one asset: `Monitron.exe`, 254,464 bytes, unsigned (`NotSigned`, no signer
+certificate) — and `README.md`'s *Getting it* now points at it instead of at a build command.
+`release.ps1` does it (refuses off `main` or on a dirty tree, builds, hashes, tags, pushes,
+publishes; `-DryRun` publishes nothing) and `verify-release.ps1` checks it **against the published
+artifact**, which is the point: `gh release download` brought the asset back and its SHA-256 equals
+the local build's, so the published bytes *are* the build's; the releases API called it Latest, the
+annotated tag peeled to a commit on `origin/main`, `Get-AuthenticodeSignature` was `NotSigned`, the
+notes printed the same hash, and the **downloaded** exe was run out of its download folder — window
+`Monitron`, nine frames out of its embedded `Monitron.ico`, this machine's AOC detected read-only —
+exiting 0: **29 checks, 0 failed**, after the nine headless suites (433 assertions, 0 failed). Three
+defects were found only by doing it, all in the tooling: a PowerShell function named `Git` shadows
+the native `git`, so `& git` inside it recursed forever (and a script that builds before it prints
+looks *hung*, which is why `-DryRun` first is now the habit); a function that emits nothing leaves a
+call-site `[string]` cast as AutomationNull rather than `""`; and `gh release view --json` has no
+`isLatest` in gh 2.86. Boundaries: **the SmartScreen warning itself is unwitnessed** — `gh`'s download
+carries no `Zone.Identifier`, so nothing here ever wore the mark that warning keys on — and the
+release is unsigned by decision, not omission; `main` sits one commit past the tag (the verifier's
+fix and the record, no app source). Recommend the standing steps: the stored `theme=` preference,
+then real sunset/sunrise by location, then per-monitor profiles.

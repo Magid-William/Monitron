@@ -8,6 +8,8 @@ previous brightness at 06:00.
 - Internal laptop panels: the Windows WMI brightness API.
 - A notification-area icon: **Show/Hide**, **Run on Windows startup**, and **Quit**; the schedule keeps
   running while the window is closed.
+- The app's own icon is the designed logo (`logo.svg`), generated into a nine-frame `Monitorn.ico` for
+  the exe, the window and the tray.
 - Planned: per-monitor profiles that survive unplug/reconnect.
 
 Stack: **C# / WPF on .NET Framework 4.8** (built with the in-box `csc.exe` - no SDK needed).

@@ -3,7 +3,8 @@
 // Shell_NotifyIcon is fed a NOTIFYICONDATA that names a window to post the tray's mouse messages to.
 // That window is the surface's own HWND: it exists even while the surface is hidden, so the icon
 // survives a Hide, and it is gone exactly when the app really exits - which is when the icon is
-// removed. The icon is drawn at runtime (no binary asset to ship) and reused as the window's icon.
+// removed. The icon is the app's own asset since EXP12 (IconAssets.cs: the generated Monitorn.ico,
+// embedded in the exe) at the size the shell draws it, and the same asset is the window's icon.
 //
 // Left click toggles the surface; right click opens a WPF ContextMenu at the cursor. A WPF menu is
 // used rather than a Win32 one so it is painted from the app's own palette (Theming.StyleMenu)
@@ -23,7 +24,6 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
-using System.Windows.Media.Imaging;
 
 namespace Monitorn.App
 {
@@ -83,9 +83,6 @@ namespace Monitorn.App
         [DllImport("shell32.dll", SetLastError = true)]
         private static extern int Shell_NotifyIconGetRect(ref NOTIFYICONIDENTIFIER identifier, out RECT iconLocation);
 
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool DestroyIcon(IntPtr icon);
-
         // The callback message the shell posts the icon's mouse events with. In the same WM_APP range
         // the rest of the app uses for private messages.
         private static readonly int TrayMessage = WM_APP + 1;
@@ -107,8 +104,7 @@ namespace Monitorn.App
         private readonly MenuItem _quitLine;
 
         private HwndSource _source;
-        private IntPtr _trayIcon;
-        private IntPtr _windowIcon;
+        private System.Drawing.Icon _trayIcon;
         private IntPtr _hwnd;
         private bool _syncing;
         private bool _added;
@@ -154,8 +150,7 @@ namespace Monitorn.App
             _menu.Items.Add(new Separator());
             _menu.Items.Add(_quitLine);
 
-            _trayIcon = MakeIcon(16);
-            _windowIcon = MakeIcon(32);
+            _trayIcon = IconAssets.Tray();
         }
 
         /// <summary>
@@ -184,15 +179,12 @@ namespace Monitorn.App
             data.uID = IconId;
             data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
             data.uCallbackMessage = (uint)TrayMessage;
-            data.hIcon = _trayIcon;
+            data.hIcon = _trayIcon.Handle;
             data.szTip = "Monitorn";
 
             if (Shell_NotifyIcon(NIM_ADD, ref data))
             {
                 _added = true;
-                try { _anchor.Icon = Imaging.CreateBitmapSourceFromHIcon(_windowIcon,
-                    Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions()); }
-                catch { /* an icon is a nicety, never a reason to fail */ }
             }
             WriteReport();
         }
@@ -220,8 +212,7 @@ namespace Monitorn.App
                 _hwnd = IntPtr.Zero;
             }
             if (_source != null) { _source.RemoveHook(WndProc); _source = null; }
-            if (_trayIcon != IntPtr.Zero) { DestroyIcon(_trayIcon); _trayIcon = IntPtr.Zero; }
-            if (_windowIcon != IntPtr.Zero) { DestroyIcon(_windowIcon); _windowIcon = IntPtr.Zero; }
+            if (_trayIcon != null) { _trayIcon.Dispose(); _trayIcon = null; }
         }
 
         /// <summary>The menu's own reading of the world: what the label says and what is checked.</summary>
@@ -257,43 +248,7 @@ namespace Monitorn.App
             return IntPtr.Zero;
         }
 
-        // --- the icon bitmap, drawn rather than shipped ---
-
-        /// <summary>
-        /// A small monitor glyph. Drawn at two sizes (tray, window) so the taskbar does not have to
-        /// scale a 16 px bitmap up. A fixed blue, not the theme's accent: the taskbar's own color is
-        /// what this has to sit on, and it is not this app's.
-        /// </summary>
-        private static IntPtr MakeIcon(int size)
-        {
-            System.Drawing.Bitmap bitmap = new System.Drawing.Bitmap(size, size,
-                System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-            try
-            {
-                using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(bitmap))
-                {
-                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                    g.Clear(System.Drawing.Color.Transparent);
-
-                    float u = size / 16f;
-                    System.Drawing.Color ink = System.Drawing.Color.FromArgb(255, 0x00, 0x78, 0xD7);
-                    using (System.Drawing.SolidBrush screen = new System.Drawing.SolidBrush(ink))
-                    using (System.Drawing.Pen pen = new System.Drawing.Pen(ink, 1.4f * u))
-                    {
-                        var body = new System.Drawing.RectangleF(2f * u, 3f * u, 12f * u, 8f * u);
-                        g.FillRectangle(screen, body);
-                        g.DrawRectangle(pen, body.X, body.Y, body.Width - pen.Width, body.Height - pen.Width);
-                        g.FillRectangle(screen, 7f * u, 11f * u, 2f * u, 1.5f * u);   // neck
-                        g.FillRectangle(screen, 5f * u, 12.5f * u, 6f * u, 1.5f * u); // foot
-                    }
-                }
-                return bitmap.GetHicon();
-            }
-            finally
-            {
-                bitmap.Dispose();
-            }
-        }
+        // --- the icon itself lives in IconAssets.cs: the generated Monitorn.ico, embedded ---
 
         // --- the app's own reading (--tray-report) ---
 

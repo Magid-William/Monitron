@@ -16,6 +16,9 @@
 //         so the schedule keeps running with no window open. TrayIcon.cs is the shell half, Tray.cs
 //         the pure Show/Hide state. --no-tray / --hidden / --tray-menu / --startup-value /
 //         --tray-report / --quit-after are its verification seams.
+// EXP12 - and the app's own icon: the designed logo.svg, generated into a nine-frame Monitorn.ico and
+//         embedded in the exe (IconAssets.cs), for the exe, the window and the tray. --icon-report is
+//         its verification seam; the logo is never edited here, it is an input.
 //
 // One row per ACTIVE display: its real name, its real current brightness on a slider, and a gear
 // that opens the settings window (EXP04). Dragging a slider is debounced by BrightnessWriter and
@@ -307,6 +310,7 @@ namespace Monitorn.App
             bool trayMenu = false;        // --tray-menu: open the tray menu at once (verification)
             string startupValue = StartupEntry.DefaultName;  // --startup-value <name>: a throwaway Run value name
             string trayReportDir = null;  // --tray-report <dir>: the app's own tray reading
+            string iconReportDir = null;  // --icon-report <dir>: the app's own icon reading (EXP12)
             TimeSpan? quitAfter = null;   // --quit-after <sec>: run the real Quit after N seconds (verification)
 
             for (int i = 0; i < args.Length; i++)
@@ -365,6 +369,7 @@ namespace Monitorn.App
                 else if (a == "--tray-menu") trayMenu = true;
                 else if (a == "--startup-value" && i + 1 < args.Length) startupValue = args[++i];
                 else if (a == "--tray-report" && i + 1 < args.Length) trayReportDir = args[++i];
+                else if (a == "--icon-report" && i + 1 < args.Length) iconReportDir = args[++i];
                 else if (a == "--quit-after" && i + 1 < args.Length) quitAfter = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
             }
 
@@ -434,6 +439,12 @@ namespace Monitorn.App
             var host = new SettingsHost(settings, theme);
             TextBlock status;
             Window window = Surface.Build(monitors, writer, scheduler, theme, width, delegate { host.Show(); }, out status);
+
+            // The app's own icon (EXP12): the generated Monitorn.ico, embedded in the exe, on the
+            // window as well as in the tray - and on the --no-tray lifecycle too, where nothing else
+            // would set it. A missing asset leaves the stock icon rather than failing anything.
+            try { window.Icon = IconAssets.Window(); }
+            catch { /* an icon is a nicety, never a reason to fail */ }
 
             if (reportDir != null)
             {
@@ -571,6 +582,9 @@ namespace Monitorn.App
                 }
             }
 
+            // --- the app's own icon reading (EXP12): which asset it carries, and where it landed ---
+            if (iconReportDir != null) WriteIconReport(iconReportDir, window, trayOn && icon != null && icon.Added);
+
             window.Closing += delegate(object sender, System.ComponentModel.CancelEventArgs e)
             {
                 if (trayOn && !quitting)
@@ -621,6 +635,36 @@ namespace Monitorn.App
         {
             if (string.IsNullOrEmpty(saveError)) return scheduler.Status;
             return scheduler.Status + "\nSettings not saved: " + saveError;
+        }
+
+        /// <summary>
+        /// The app's own icon reading (--icon-report): the asset it carries and the frames inside it,
+        /// whether the window got it, and whether the shell took the tray icon. The outside witnesses
+        /// (the shell's icon for the exe, Win32's icon for the window) are the verifier's; this is
+        /// only what the app believes.
+        /// </summary>
+        private static void WriteIconReport(string dir, Window window, bool trayIcon)
+        {
+            var text = new System.Text.StringBuilder();
+            text.Append("icon.report=1").Append('\n');
+            text.Append("resource=").Append(IconAssets.Embedded ? IconAssets.ResourceName : "missing").Append('\n');
+
+            var sizes = new System.Collections.Generic.List<string>();
+            foreach (int size in IconAssets.FrameSizes()) sizes.Add(size.ToString(CultureInfo.InvariantCulture));
+            text.Append("frames=").Append(string.Join(",", sizes.ToArray())).Append('\n');
+            text.Append("windowIcon=").Append(window.Icon == null ? "false" : "true").Append('\n');
+            text.Append("trayIcon=").Append(trayIcon ? "true" : "false").Append('\n');
+
+            try
+            {
+                System.IO.Directory.CreateDirectory(dir);
+                string path = System.IO.Path.Combine(dir, "icon.txt");
+                string temp = path + ".tmp";
+                System.IO.File.WriteAllText(temp, text.ToString());
+                if (System.IO.File.Exists(path)) System.IO.File.Replace(temp, path, null);
+                else System.IO.File.Move(temp, path);
+            }
+            catch { /* a report is evidence, never a reason to fail */ }
         }
 
         /// <summary>"light" | "dark" for the OS reading, from a command line.</summary>

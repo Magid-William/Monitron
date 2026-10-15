@@ -55,14 +55,16 @@ Write-Host "release $Tag  ($Repo)"
 Write-Host ""
 
 # ---------------------------------------------------------------- what GitHub says the release is
-$json = [string](gh release view $Tag --repo $Repo --json tagName,isDraft,isPrerelease,isLatest,url,body,assets)
+$json = [string](gh release view $Tag --repo $Repo --json tagName,isDraft,isPrerelease,isImmutable,url,body,assets)
 if ($LASTEXITCODE -ne 0) { throw "gh release view failed: $json" }
 $release = $json | ConvertFrom-Json
 
 Check ($release.tagName -eq $Tag) "the release is tagged $Tag"
 Check ($release.isDraft -eq $false) "it is published, not a draft"
 Check ($release.isPrerelease -eq $false) "it is not a prerelease"
-Check ($release.isLatest -eq $true) "it is the release GitHub offers as Latest"
+# gh release view has no isLatest field (gh 2.86); the releases API is what "Latest" means.
+$latest = [string](gh api "repos/$Repo/releases/latest" --jq .tag_name 2>$null)
+Check ($latest.Trim() -eq $Tag) "it is the release GitHub offers as Latest (got '$($latest.Trim())')"
 Note "url $($release.url)"
 
 $assets = @($release.assets)

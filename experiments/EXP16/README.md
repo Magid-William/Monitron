@@ -72,3 +72,14 @@ _Pending._
   indistinguishable. `release.ps1` now says what it is doing before it does it.
 - `-DryRun` first, on the released branch: it is what surfaced the recursion, and then the
   uncommitted-tree guard when the fix itself was still unstaged.
+- A function that emits nothing leaves a call-site `[string]` cast with AutomationNull, not `""`, so
+  a clean `git status` (no output) broke the next `.Trim()`. Join inside the wrapper
+  (`return ($out -join "`n")`) instead of casting the call.
+- `gh release view --json` has no `isLatest` field (gh 2.86): ask
+  `gh api repos/<owner>/<repo>/releases/latest --jq .tag_name` for what "Latest" means.
+- Verify a release on the **published asset**, not the local build: `gh release download` through the
+  same endpoint a browser uses, then hash-compare and run it. `Get-AuthenticodeSignature` is how
+  "unsigned" stops being a description and becomes an assertion (`NotSigned`).
+- Resolve paths from `$PSCommandPath`, as `build.ps1` does: `release.ps1` and `verify-release.ps1` run
+  the same from the repo root and from `src\Monitron.App\`, because neither trusts the working
+  directory.

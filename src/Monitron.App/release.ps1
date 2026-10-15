@@ -33,7 +33,9 @@ $exe = Join-Path $here 'Monitron.App.exe'
 function GitRun([string[]]$argv) {
     $out = & git -C $root @argv
     if ($LASTEXITCODE -ne 0) { throw "git $($argv -join ' ') failed with exit $LASTEXITCODE" }
-    return $out
+    # -join, not a [string] cast at the call site: a function that emits nothing leaves the cast with
+    # AutomationNull (a $null, not ""), so an empty `git status` would break the next .Trim().
+    return ($out -join "`n")
 }
 
 # --- the released line and a clean tree: the tag has to name the commit the exe was built from ---

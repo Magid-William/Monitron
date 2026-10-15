@@ -45,7 +45,7 @@ function Note([string]$what) { Write-Host "  .... $what" }
 function GitRun([string[]]$argv) {
     $out = & git -C $root @argv 2>&1
     if ($LASTEXITCODE -ne 0) { throw "git $($argv -join ' ') failed with exit $LASTEXITCODE`: $out" }
-    return $out
+    return ($out -join "`n")
 }
 
 $root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSCommandPath))

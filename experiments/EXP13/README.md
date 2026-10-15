@@ -134,20 +134,27 @@ build and verification detail into a short "For developers" section - the "no SD
 fact, not a selling point, and a casual reader has no use for it.
 
 **Post-conclusion change 4 (user's ask, same experiment): the README got a face.** The landing page
-now opens with the logo and carries two screenshots of the app — the window (a row per display) and
-the night-light settings — in a new `docs/images/`. No app code changed and nothing was rebuilt; the
-images are the app's own pixels, from the EXP08 report seam
+now opens with the logo and carries three screenshots of the app — the window (a row per display),
+the night-light settings, and the same window in Windows' dark theme with the schedule running — in a
+new `docs/images/`. No app code changed and nothing was rebuilt. The first two are the app's own
+pixels, from the EXP08 report seam
 (`Monitron.App.exe --theme-report <dir> --os-theme light --width 420`, whose report mode explicitly
 writes no monitor), so they are chromeless, reproducible, and cannot dim a screen to make them. The
-header mark is `docs/images/logo.png`, the repo's own rasteriser run over the untouched `logo.svg`
+third is the user's own desktop capture, handed over for this: cropped from the 646x536 desktop shot
+to the window (its bounding box found by scanning for non-black pixels: `147,98 484x363`) with the
+rounded corners made genuinely transparent — the desktop behind them is pure black, and pure black
+corners would show as square nubs on a light README, so each outside-the-mask pixel's alpha is its own
+luminance over the border's `#2F2F2F`. It is the only shot that shows the schedule's status line
+(`Night light: 32% until 9:00 AM`), because a report render has no schedule. The header mark is
+`docs/images/logo.png`, the repo's own rasteriser run over the untouched `logo.svg`
 (`icogen.exe logo.svg <temp>.ico --png <dir> 256`) — the raw SVG's art sits in ~47% of its viewBox, so
 rasterising crops it; the throwaway `.ico` went to temp, so `Monitron.ico` was not rewritten. Light
-theme, as the Windows default. The window shot came out with **two** rows (`Display 1` and the AOC
-`Q27G3G3R3`): the internal panel EXP10 declared gone is answering again, so the README's screenshot
-happens to show both halves of the feature. Confirmed the road, not assumed: `Detect-Brightness.ps1`
-(read-only) now lists two display monitors, the primary `\\.\DISPLAY2` with DDC brightness
-**unreadable** and a WMI panel `DISPLAY\BOE0764\...` at 32 — that is the `Display 1` row — beside the
-`\\.\DISPLAY1` AOC at 32 over DDC/CI.
+theme for the renders, as the Windows default. The window shot came out with **two** rows (`Display 1`
+and the AOC `Q27G3G3R3`): the internal panel EXP10 declared gone is answering again, so the README's
+screenshot happens to show both halves of the feature. Confirmed the road, not assumed:
+`Detect-Brightness.ps1` (read-only) now lists two display monitors, the primary `\\.\DISPLAY2` with DDC
+brightness **unreadable** and a WMI panel `DISPLAY\BOE0764\...` at 32 — that is the `Display 1` row —
+beside the `\\.\DISPLAY1` AOC at 32 over DDC/CI.
 
 ## Learnings
 - A repo-wide product rename: a byte-level `String.Replace` over every text file (a Latin1 round-trip

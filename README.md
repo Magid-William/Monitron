@@ -13,6 +13,12 @@ level overnight, and put every screen back the way it was in the morning.
   <img src="docs/images/monitron-night-light.png" height="240" alt="The night-light settings: strength, gradual fade, and the hours it runs">
 </p>
 
+<p align="center">
+  <img src="docs/images/monitron-window-dark.png" height="230" alt="The same window in Windows' dark theme, with the night light running and its status line reading 32% until 9:00 AM">
+</p>
+
+<p align="center"><em>The same window in Windows' dark theme, with the night light running.</em></p>
+
 ## What it does
 
 - **A slider for every screen.** Your main monitor bright, your second one dim — each keeps its own

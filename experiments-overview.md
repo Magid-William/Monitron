@@ -11,7 +11,7 @@ only the user declares the final status.
 | EXP04 | Dummy "Schedule night light" settings window, UI only | success | EXP04 | 2026-10-15 | 2026-10-15 | [experiments/EXP04/README.md](experiments/EXP04/README.md) |
 | EXP05 | Bring brightness to life: real detection + real writes on the surface | success | EXP05 | 2026-10-15 | 2026-10-15 | [experiments/EXP05/README.md](experiments/EXP05/README.md) |
 | EXP06 | Apply the night-light schedule (scheduler FSM + real monitors) | success | EXP06 | 2026-10-15 | 2026-10-15 | [experiments/EXP06/README.md](experiments/EXP06/README.md) |
-| EXP07 | Persist the schedule settings (a file behind the window) | inProg | EXP07 | 2026-10-15 | - | [experiments/EXP07/README.md](experiments/EXP07/README.md) |
+| EXP07 | Persist the schedule settings (a file behind the window) | success | EXP07 | 2026-10-15 | 2026-10-15 | [experiments/EXP07/README.md](experiments/EXP07/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was
@@ -63,12 +63,6 @@ claim rests on an outside witness rather than a screenshot, and the first to pro
 *active* target on this machine). Nothing is persisted and no schedule is applied - the schedule was
 the next experiment, which branched off this tip and kept this actuator.
 
-**EXP07 (`inProg`, 2026-10-15):** the sixth experiment's first follow-on. Persists the six schedule
-settings (switch, strength, gradual fade, mode, turn-on, turn-off) into
-`%APPDATA%\Monitorn\settings.ini` - loaded at launch, saved on each edit - so the schedule survives a
-restart; monitor state and per-monitor profiles stay out of scope (they need identity). Open
-questions carry proposed defaults in the record, adopted unless the user says otherwise.
-
 **EXP06:** `success`. Applies the schedule EXP02→05 kept deferring. `NightLightScheduler`
 (`Schedule.cs`) derives its phase from an injected clock - day, fade in, night, fade out - fades
 every active display to the strength at turn-on, holds, and hands the captured day value back at
@@ -85,3 +79,19 @@ user move). Nothing is persisted yet; sunset mode is inert by construction (turn
 EXP04 left it. Recommend **EXP07 = persistence** - the settings and the schedule surviving a reboot,
 behind this window - then the tray shell + autostart that makes an overnight dim useful with no
 window open; real sunset/sunrise by location and per-monitor profiles after that.
+
+**EXP07:** `success` (user-declared). The follow-on EXP06 asked for: the six schedule settings
+(switch, strength, gradual fade, mode, turn-on, turn-off) now live in `%APPDATA%\Monitorn\settings.ini`,
+loaded at launch into the same object the window edits and the scheduler reads, and written on every
+real edit. `SettingsPersistence.cs` splits a pure `SettingsCodec` (text <-> model, writing *through
+the model's transitions*, so a corrupt `strength=999` is refused by the same rule the UI enforces)
+from a thin `SettingsStore` (tolerant read, atomic temp-then-replace write, failure reported not
+thrown); `ScheduleSettings` gained a `Changed` event that fires only on a real transition, which is
+what keeps the window's own re-render from writing the file. **Run 2026-10-15:** 42 headless
+assertions and 27 UI Automation checks - a first run shows the defaults and writes nothing; strength
+55 + gradual fade off is written, survives a restart, and is not rewritten by opening and closing; a
+corrupt file starts on the defaults; and the surface's own gear writes the same file. Regressions:
+38 / 19 / 114 headless, 30 / 11 / 24 end to end, all passing. Monitor state and per-monitor profiles
+stay out of scope (they need identity); the real per-user file was never created by any run.
+Recommend **EXP08 = the tray shell + autostart** (which also decides what closing does), then real
+sunset/sunrise by location, then per-monitor profiles.

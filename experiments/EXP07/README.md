@@ -115,23 +115,54 @@ Boundaries this run did not exercise:
   is external). The settings file is not per-kind and does not touch brightness.
 
 ## Conclusion (findings)
-_Pending - the user signs off._
+**`success`** (2026-10-15, user-declared). The user asked for the schedule to survive; this is it -
+the six settings the window edits persist to `%APPDATA%\Monitorn\settings.ini`, are read back at
+launch into the same object the scheduler reads, and are written on every real edit.
+
+What this settles:
+- **The hypothesis holds, on both paths that edit the settings.** The standalone window and the
+  surface's gear write the same file, and a restart shows the edited values exactly - proven by
+  driving the real window (27 UI Automation checks) and headlessly (42 assertions).
+- **A missing, partial, corrupt or unknown-version file is not an error.** The built-in defaults show,
+  the keys that *are* valid are kept, and the app starts. The codec writes through the model's own
+  transitions, so a bad value is refused by the one rule that already knows the range.
+- **The write cannot fire by accident.** `Changed` fires only on a real transition, so the window
+  re-rendering itself, a refused value or a no-op set writes nothing - and opening and closing with
+  no edit leaves the file byte-identical.
+- **The verification seams stay out of the file.** `--strength/--on/--off/--no-schedule` are applied
+  after the load and before the app subscribes, so no verifier can rewrite or read back a flag; the
+  real per-user file was never created by any run.
+
+What it deliberately does not settle - the boundary of this experiment:
+- **Only the six user settings persist.** A display's captured day baseline is not, so a process
+  killed mid-night leaves the display dimmed and the next launch would read that as its "day" value.
+  The fix needs the resident tray and monitor identity: later experiments.
+- **Closing still restores the day value** (unchanged from EXP06), because there is still no tray or
+  autostart; the schedule is not expected to keep running once the window is gone.
+- Sunset/sunrise is still inert (no location), the fade is still a constant, and the internal-WMI
+  path is still only implemented, not exercised.
+
+Next, in the order the seams suggest: the **tray shell + autostart** that makes an overnight schedule
+useful with no window open (and decides what closing should do), then real **sunset/sunrise** by
+location, then per-monitor profiles and identity that survives reconnect
+(`docs/prior-art/apis-and-identity.md`).
+
+Evidence: the three commands above - `persistence-test.ps1`, `verify-persistence.ps1` and the
+regression set; shots in `%TEMP%\monitorn-exp07\`.
 
 ## Learnings
-- `src\Monitorn.App\persistence-test.ps1` - builds and runs the headless codec/store assertions with
-  the in-box `csc` (console exe; a winexe cannot print). Use it whenever the format, a key, or the
-  `Changed` hook changes.
-- `src\Monitorn.App\verify-persistence.ps1` - a real restart against a temp file: edit, close, assert
-  the file, relaunch, assert the window; plus a corrupt file and the surface's gear. Never pass the
-  real `%APPDATA%` path; the script asserts it is unchanged. Use when persistence or the settings
-  model changes.
+- `src\Monitorn.App\persistence-test.ps1` and `verify-persistence.ps1` - the headless and the
+  end-to-end pass over the settings file (round trip, missing/corrupt/partial, the `Changed` hook,
+  and a real restart). Run them whenever the format, a key or the hook changes; the verifier must
+  never be handed the real `%APPDATA%` path (it asserts that file is unchanged).
 - Write a settings codec *through the model's own transitions* (`TrySetStrength`, `TrySetTurnOn/...`):
-  validation stays in one place, so a corrupt file is refused by the same rules the UI enforces, and
+  validation stays in one place, so a corrupt file is refused by the same rules the UI enforces and
   the codec needs no knowledge of the ranges.
 - `SettingsStore.DefaultPath()` = `%APPDATA%\Monitorn\settings.ini`; a save is `File.WriteAllText` to
-  `<file>.tmp` then `File.Replace` (or `File.Move` when the file does not exist yet) - atomic, and a
-  failed write is reported, never thrown.
+  `<file>.tmp` then `File.Replace` (or `File.Move` when the file is new). A failed read or write is
+  reported, never thrown. `Changed` must not fire on a refused value or a no-op set, or the window's
+  own re-render (which re-assigns the value it already has) would write the file.
 - PowerShell: `Check (cond, "msg")` is a trap - the comma makes a 2-element array, which is always
   truthy, so every check "passes". The verifiers' form is `Check (cond) "msg"`.
-- `--no-schedule` disables the settings body (the On switch gates it). To launch a live-but-inert
-  surface for a UI verifier, pass turn-on == turn-off (`--on 00:00 --off 00:00`) instead.
+- `--no-schedule` disables the settings body (the On switch gates it, EXP04). To launch a live-but-
+  inert surface for a UI verifier, pass turn-on == turn-off (`--on 00:00 --off 00:00`) instead.

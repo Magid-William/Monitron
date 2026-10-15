@@ -2,6 +2,9 @@
 // EXP06 - and the night-light schedule applied: the surface drives real monitors, and the schedule
 //         fades them down to the strength at turn-on and gives the previous value back at turn-off.
 // EXP07 - and the schedule's settings persisted, so a restart keeps them (SettingsPersistence.cs).
+// EXP08 - and the theme: one palette both windows draw from (Theme.cs), following the Windows app
+//         theme, with the dark title bar and the control templates the OS theme would keep light
+//         (Theming.cs, SystemTheme.cs). --theme and --theme-report are its verification seams.
 //
 // One row per ACTIVE display: its real name, its real current brightness on a slider, and a gear
 // that opens the settings window (EXP04). Dragging a slider is debounced by BrightnessWriter and
@@ -29,35 +32,30 @@ namespace Monitorn.App
 {
     internal static class Surface
     {
+        // The palette lives in Theme.cs now (EXP08): one ThemeBrushes instance is handed to every
+        // row, so flipping the theme recolours the whole surface without rebuilding it.
         private static readonly FontFamily GlyphFont = new FontFamily("Segoe MDL2 Assets");
         private const string GearGlyph = "\uE713"; // Segoe MDL2 Assets: Settings
 
-        private static readonly Brush Ink = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
-        private static readonly Brush Muted = new SolidColorBrush(Color.FromRgb(0x76, 0x76, 0x76));
-        private static readonly Brush Warn = new SolidColorBrush(Color.FromRgb(0xB0, 0x3A, 0x2B));
-        private static readonly Brush RowFill = new SolidColorBrush(Color.FromRgb(0xF7, 0xF7, 0xF7));
-        private static readonly Brush RowEdge = new SolidColorBrush(Color.FromRgb(0xE4, 0xE4, 0xE4));
-        private static readonly Brush GearFill = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
-        private static readonly Brush GearEdge = new SolidColorBrush(Color.FromRgb(0xD8, 0xD8, 0xD8));
-
         public static Window Build(IList<MonitorInfo> monitors, BrightnessWriter writer, NightLightScheduler scheduler,
-            double width, Action onSettings, out TextBlock status)
+            ThemeState theme, double width, Action onSettings, out TextBlock status)
         {
+            ThemeBrushes t = theme.Brushes;
             var root = new StackPanel { Margin = new Thickness(18, 16, 18, 16) };
 
-            root.Children.Add(Label("Monitorn", 16, Ink, FontWeights.SemiBold, new Thickness(0, 0, 0, 2)));
-            root.Children.Add(Label("Brightness per display", 12, Muted, FontWeights.Normal, new Thickness(0, 0, 0, 14)));
+            root.Children.Add(Label("Monitorn", 16, t.Ink, FontWeights.SemiBold, new Thickness(0, 0, 0, 2)));
+            root.Children.Add(Label("Brightness per display", 12, t.Muted, FontWeights.Normal, new Thickness(0, 0, 0, 14)));
 
             if (monitors.Count == 0)
             {
                 root.Children.Add(Label(
                     "No controllable displays were detected. A display is controllable when it is an "
                     + "active target and answers DDC/CI or the WMI brightness API.",
-                    12, Muted, FontWeights.Normal, new Thickness(0, 0, 0, 0)));
+                    12, t.Muted, FontWeights.Normal, new Thickness(0, 0, 0, 0)));
             }
             else
             {
-                foreach (MonitorInfo monitor in monitors) root.Children.Add(Row(monitor, writer, scheduler, onSettings));
+                foreach (MonitorInfo monitor in monitors) root.Children.Add(Row(monitor, writer, scheduler, t, onSettings));
             }
 
             // What the schedule is doing right now. It carries a fixed automation id so a verifier
@@ -68,7 +66,7 @@ namespace Monitorn.App
             {
                 Text = "",
                 FontSize = 11,
-                Foreground = Ink,
+                Foreground = t.Ink,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 4, 0, 0),
             };
@@ -81,20 +79,22 @@ namespace Monitorn.App
                     : "Drag a slider to set a monitor. The night-light schedule dims every display to "
                       + "its strength at the time you set, and gives it back afterwards. Settings are "
                       + "saved and come back next launch.",
-                11, Muted, FontWeights.Normal, new Thickness(0, 8, 0, 0)));
+                11, t.Muted, FontWeights.Normal, new Thickness(0, 8, 0, 0)));
 
-            return new Window
+            var window = new Window
             {
                 Title = "Monitorn",
                 Width = width,
                 SizeToContent = SizeToContent.Height,
                 MinWidth = 300,
                 ResizeMode = ResizeMode.CanResizeWithGrip,
-                Background = Brushes.White,
+                Background = t.WindowBg,
                 FontFamily = new FontFamily("Segoe UI"),
                 FontSize = 13,
                 Content = root,
             };
+            Theming.Bind(window, theme);   // the palette, and the templates the OS theme would keep light
+            return window;
         }
 
         private static TextBlock Label(string text, double size, Brush brush, FontWeight weight, Thickness margin)
@@ -111,14 +111,15 @@ namespace Monitorn.App
         }
 
         /// <summary>One monitor: name + live value above a slider, gear button at the right.</summary>
-        private static Border Row(MonitorInfo monitor, BrightnessWriter writer, NightLightScheduler scheduler, Action onSettings)
+        private static Border Row(MonitorInfo monitor, BrightnessWriter writer, NightLightScheduler scheduler,
+            ThemeBrushes t, Action onSettings)
         {
             var value = new TextBlock
             {
                 Text = monitor.Current.ToString(CultureInfo.InvariantCulture),
                 FontSize = 13,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = Ink,
+                Foreground = t.Ink,
                 MinWidth = 24,
                 TextAlignment = TextAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -128,7 +129,7 @@ namespace Monitorn.App
             var name = new TextBlock
             {
                 Text = monitor.DisplayName,
-                Foreground = Ink,
+                Foreground = t.Ink,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 ToolTip = monitor.Kind == MonitorKind.External ? "External display (DDC/CI)" : "Internal panel (WMI)",
@@ -138,7 +139,7 @@ namespace Monitorn.App
             {
                 Text = "",
                 FontSize = 11,
-                Foreground = Warn,
+                Foreground = t.Warn,
                 TextWrapping = TextWrapping.Wrap,
                 Visibility = Visibility.Collapsed,
                 Margin = new Thickness(0, 4, 0, 0),
@@ -206,12 +207,12 @@ namespace Monitorn.App
 
             var gear = new Button
             {
-                Content = new TextBlock { Text = GearGlyph, FontFamily = GlyphFont, FontSize = 16, Foreground = Ink },
+                Content = new TextBlock { Text = GearGlyph, FontFamily = GlyphFont, FontSize = 16, Foreground = t.Ink },
                 Width = 34,
                 Height = 34,
                 Padding = new Thickness(0),
-                Background = GearFill,
-                BorderBrush = GearEdge,
+                Background = t.ControlFill,
+                BorderBrush = t.ControlEdge,
                 BorderThickness = new Thickness(1),
                 Cursor = Cursors.Hand,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -234,8 +235,8 @@ namespace Monitorn.App
             return new Border
             {
                 Child = grid,
-                Background = RowFill,
-                BorderBrush = RowEdge,
+                Background = t.RowFill,
+                BorderBrush = t.RowEdge,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(12, 10, 10, 12),
@@ -268,7 +269,14 @@ namespace Monitorn.App
             int? strength = null;        // --strength N
             TimeSpan? fade = null;       // --fade-seconds N (the whole fade in N seconds)
             TimeSpan? step = null;       // --step-seconds N (one staircase step every N seconds)
-            string settingsFile = null;  // --settings-file <path>: where the settings live (verification)
+            string settingsFile = null;   // --settings-file <path>: where the settings live (verification)
+            ThemePreference preference = ThemePreference.Auto; // --theme auto|light|dark
+            bool osGiven = false;         // --os-theme light|dark: stand in for the OS reading
+            bool osLight = true;
+            bool templates = true;        // --theme-no-templates: the measurement, not the look
+            string reportDir = null;      // --theme-report <dir>: render and sample both windows
+            TimeSpan? toggleAfter = null; // --theme-toggle-after <sec> <light|dark>: drive a live switch
+            bool toggleLight = false;
 
             for (int i = 0; i < args.Length; i++)
             {
@@ -284,9 +292,42 @@ namespace Monitorn.App
                 else if (a == "--fade-seconds" && i + 1 < args.Length) fade = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
                 else if (a == "--step-seconds" && i + 1 < args.Length) step = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
                 else if (a == "--settings-file" && i + 1 < args.Length) settingsFile = args[++i];
+                else if (a == "--theme" && i + 1 < args.Length)
+                {
+                    if (!ThemeChoice.TryParsePreference(args[++i], out preference))
+                        throw new ArgumentException("--theme takes auto, light or dark");
+                }
+                else if (a == "--os-theme" && i + 1 < args.Length) { osGiven = true; SetOsTheme(args[++i], out osLight); }
+                else if (a == "--theme-no-templates") templates = false;
+                else if (a == "--theme-report" && i + 1 < args.Length) reportDir = args[++i];
+                else if (a == "--theme-toggle-after" && i + 2 < args.Length)
+                {
+                    toggleAfter = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
+                    SetOsTheme(args[++i], out toggleLight);
+                }
             }
 
             var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
+
+            // --- the theme: what Windows says, with the command line on top ---
+            // --os-theme stands in for the OS reading, the same way --now stands in for the clock, so
+            // a verifier can drive both themes without touching the user's real Windows theme. Without
+            // it the registry is read, and an unreadable key means light - the app's historical look.
+            bool[] scripted = new bool[] { osGiven ? osLight : (SystemTheme.ReadAppThemeLight() ?? true) };
+            bool followScript = osGiven || toggleAfter.HasValue;
+            Func<bool> osReader = followScript
+                ? (Func<bool>)delegate { return scripted[0]; }
+                : delegate { bool? read = SystemTheme.ReadAppThemeLight(); return read.HasValue ? read.Value : true; };
+            var theme = new ThemeState(preference, osReader, templates);
+
+            if (toggleAfter.HasValue)
+            {
+                // The live path, driven: flip what the OS reader returns and re-resolve, exactly what
+                // a WM_SETTINGCHANGE from Windows would do (SystemTheme.Follow calls Refresh too).
+                DispatcherTimer toggle = new DispatcherTimer { Interval = toggleAfter.Value };
+                toggle.Tick += delegate { toggle.Stop(); scripted[0] = toggleLight; theme.Refresh(); };
+                toggle.Start();
+            }
 
             // --- the settings the window edits and the schedule reads: one object, loaded from disk ---
             // The file is read first; the command-line seams are applied on top of it and are NEVER
@@ -297,11 +338,11 @@ namespace Monitorn.App
             if (strength.HasValue) settings.TrySetStrength(strength.Value.ToString(CultureInfo.InvariantCulture));
             if (!schedule) settings.SetEnabled(false);
 
-            if (settingsOnly)
+            if (settingsOnly && reportDir == null)
             {
                 // A real edit in the settings window is written straight back to the file.
                 settings.Changed += delegate { store.Save(settings); };
-                app.Run(SettingsSurface.Build(settings));
+                app.Run(SettingsSurface.Build(settings, theme));
                 return;
             }
 
@@ -329,9 +370,18 @@ namespace Monitorn.App
                 fade.HasValue ? fade.Value : Fade, step.HasValue ? step.Value : Step);
             foreach (MonitorInfo monitor in monitors) scheduler.Observe(monitor.Id, monitor.Min, monitor.Max, monitor.Current);
 
-            var host = new SettingsHost(settings);
+            var host = new SettingsHost(settings, theme);
             TextBlock status;
-            Window window = Surface.Build(monitors, writer, scheduler, width, delegate { host.Show(); }, out status);
+            Window window = Surface.Build(monitors, writer, scheduler, theme, width, delegate { host.Show(); }, out status);
+
+            if (reportDir != null)
+            {
+                // Report mode must not touch a monitor: no scheduler timer, no restore, no writes.
+                // It runs the surface window for its pixels only, and a settings window beside it.
+                double seconds = toggleAfter.HasValue ? toggleAfter.Value.TotalSeconds + 1.5 : 2.0;
+                ThemeReport.Run(app, theme, reportDir, window, SettingsSurface.Build(settings, theme), seconds);
+                return;
+            }
 
             // A real edit is written to the file at once; a failed write is surfaced on the status
             // line rather than thrown, and the app keeps running.
@@ -378,6 +428,15 @@ namespace Monitorn.App
         {
             if (string.IsNullOrEmpty(saveError)) return scheduler.Status;
             return scheduler.Status + "\nSettings not saved: " + saveError;
+        }
+
+        /// <summary>"light" | "dark" for the OS reading, from a command line.</summary>
+        private static void SetOsTheme(string text, out bool light)
+        {
+            ThemeMode mode;
+            if (!ThemeChoice.TryParseMode(text, out mode))
+                throw new ArgumentException("--os-theme takes light or dark: " + text);
+            light = mode == ThemeMode.Light;
         }
 
         /// <summary>24-hour "HH:mm" from a command line into the model's 12-hour parts.</summary>

@@ -12,6 +12,7 @@ only the user declares the final status.
 | EXP05 | Bring brightness to life: real detection + real writes on the surface | success | EXP05 | 2026-10-15 | 2026-10-15 | [experiments/EXP05/README.md](experiments/EXP05/README.md) |
 | EXP06 | Apply the night-light schedule (scheduler FSM + real monitors) | success | EXP06 | 2026-10-15 | 2026-10-15 | [experiments/EXP06/README.md](experiments/EXP06/README.md) |
 | EXP07 | Persist the schedule settings (a file behind the window) | success | EXP07 | 2026-10-15 | 2026-10-15 | [experiments/EXP07/README.md](experiments/EXP07/README.md) |
+| EXP08 | Dark mode: the app's windows follow the Windows app theme | inProg | EXP08 | 2026-10-15 | - | [experiments/EXP08/README.md](experiments/EXP08/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was

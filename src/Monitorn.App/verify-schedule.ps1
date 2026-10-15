@@ -15,15 +15,31 @@
 #
 #   .\verify-schedule.ps1                 # full scenario, shots into %TEMP%\monitorn-exp06
 #   .\verify-schedule.ps1 -Rate 15        # a slower simulated clock (more margin per phase)
+#
+# EXP08: this runs on a temp settings file and deletes it first. It used to run with no
+# --settings-file at all, which was only safe while no real settings file existed - once the user
+# has one, its persisted "gradual fade" is inherited and the fade phase under test does not happen.
+# (Same correction EXP07 made to verify-settings.ps1, and the reason this script started failing
+# without any theme change.)
 param(
     [string]$Exe = (Join-Path (Split-Path -Parent $PSCommandPath) 'Monitorn.App.exe'),
     [string]$Probe = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSCommandPath)) 'probe\probe.exe'),
     [double]$Rate = 30,
-    [string]$ShotDir = (Join-Path $env:TEMP 'monitorn-exp06')
+    [string]$ShotDir = (Join-Path $env:TEMP 'monitorn-exp06'),
+    [string]$SettingsFile = (Join-Path $env:TEMP 'monitorn-exp06\state\settings.ini')
 )
 
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path $ShotDir)) { [void](New-Item -ItemType Directory -Path $ShotDir) }
+
+# The defaults this scenario is written against (in particular gradual fade ON), and no writes to
+# the user's real file.
+$RealSettings = Join-Path $env:APPDATA 'Monitorn\settings.ini'
+$realExisted = Test-Path $RealSettings
+$realHash = if ($realExisted) { (Get-FileHash $RealSettings -Algorithm SHA256).Hash } else { '' }
+$settingsDir = Split-Path -Parent $SettingsFile
+if ($settingsDir -and -not (Test-Path $settingsDir)) { [void](New-Item -ItemType Directory -Path $settingsDir) }
+if (Test-Path $SettingsFile) { Remove-Item $SettingsFile -Force }
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
@@ -213,7 +229,7 @@ $descending = $strength -lt $orig
 # A scripted night: start at 16:00, turn on 16:05, fade 2 minutes in 10-second steps, turn off 16:22.
 # At --rate 30 one simulated minute is two real seconds, so the whole night is under a minute.
 $today = (Get-Date).ToString('yyyy-MM-dd')
-$args = "--now `"$today 16:00:00`" --rate $Rate --on 16:05 --off 16:22 --strength $strength --fade-seconds 120 --step-seconds 10"
+$args = "--now `"$today 16:00:00`" --rate $Rate --on 16:05 --off 16:22 --strength $strength --fade-seconds 120 --step-seconds 10 --settings-file `"$SettingsFile`""
 Write-Host "`n== launch a scripted night =="
 Write-Host ("  $Exe $args")
 Write-Host ("  strength $strength (from $orig), fade 120 s in 10 s steps")
@@ -340,6 +356,9 @@ try {
 
 Check ($script:closedClean) "the app exited by itself"
 Check ((ProbeRead) -eq $orig) "and the display is left at its original $orig (the escalation budget)"
+$nowHash = if ((Test-Path $RealSettings)) { (Get-FileHash $RealSettings -Algorithm SHA256).Hash } else { '' }
+Check ((Test-Path $RealSettings) -eq $realExisted -and $nowHash -eq $realHash) `
+    "the user's real %APPDATA% settings file is untouched (this run used `"$SettingsFile`")"
 
 Write-Host ""
 Write-Host ("{0} checks passed, {1} failed" -f $script:passed, $script:failed)

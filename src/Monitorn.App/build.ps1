@@ -1,6 +1,7 @@
 # Builds the Monitorn control surface with the in-box .NET Framework 4.8 compiler
 # (no SDK, no Visual Studio, no download). EXP03, extended by EXP04, extended by EXP05,
-# extended by EXP06 (the schedule machine), extended by EXP07 (the settings file).
+# extended by EXP06 (the schedule machine), extended by EXP07 (the settings file),
+# extended by EXP08 (the theme: Theme.cs, Theming.cs, SystemTheme.cs, ThemeReport.cs).
 #
 # The UI is written code-only (no XAML), so no markup/BAML step is needed and csc alone
 # can produce the executable; WPF comes from the in-box runtime assemblies.
@@ -35,6 +36,10 @@ $args = @('/nologo', '/target:winexe', '/platform:x64', "/out:$out",
       (Join-Path $here 'Schedule.cs'),
       (Join-Path $here 'ScheduleSettings.cs'),
       (Join-Path $here 'SettingsPersistence.cs'),
+      (Join-Path $here 'Theme.cs'),
+      (Join-Path $here 'Theming.cs'),
+      (Join-Path $here 'SystemTheme.cs'),
+      (Join-Path $here 'ThemeReport.cs'),
       (Join-Path $here 'SettingsWindow.cs'))
 
 & $csc @args

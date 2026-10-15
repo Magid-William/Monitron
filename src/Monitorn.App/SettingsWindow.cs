@@ -22,6 +22,8 @@ namespace Monitorn.App
     internal sealed class SettingsSurface
     {
         private readonly ScheduleSettings _model;
+        private readonly ThemeState _theme;
+        private readonly ThemeBrushes _t;
 
         private CheckBox _enabledBox;
         private CheckBox _fadeBox;
@@ -40,11 +42,16 @@ namespace Monitorn.App
 
         private bool _rendering;
 
-        private SettingsSurface(ScheduleSettings model) { _model = model; }
-
-        public static Window Build(ScheduleSettings model)
+        private SettingsSurface(ScheduleSettings model, ThemeState theme)
         {
-            return new SettingsSurface(model).Create();
+            _model = model;
+            _theme = theme;
+            _t = theme.Brushes;
+        }
+
+        public static Window Build(ScheduleSettings model, ThemeState theme)
+        {
+            return new SettingsSurface(model, theme).Create();
         }
 
         private Window Create()
@@ -61,7 +68,7 @@ namespace Monitorn.App
 
             root.Children.Add(Label(
                 "Saved to your settings file and applied while Monitorn is running.",
-                11, Muted, FontWeights.Normal, new Thickness(0, 14, 0, 0)));
+                11, _t.Muted, FontWeights.Normal, new Thickness(0, 14, 0, 0)));
 
             var window = new Window
             {
@@ -73,13 +80,14 @@ namespace Monitorn.App
                 // Standalone (--settings) it is its own main window; the host overrides this to
                 // CenterOwner when it is opened from a gear.
                 WindowStartupLocation = WindowStartupLocation.CenterScreen,
-                Background = Brushes.White,
+                Background = _t.WindowBg,
                 FontFamily = new FontFamily("Segoe UI"),
                 FontSize = 13,
                 Content = root,
             };
 
             Render();
+            Theming.Bind(window, _theme);   // the palette, and the templates the OS theme would keep light
             return window;
         }
 
@@ -88,7 +96,7 @@ namespace Monitorn.App
         /// <summary>Section title with the feature's own on/off switch at the right.</summary>
         private UIElement Header()
         {
-            var title = Label("Schedule night light", 15, Ink, FontWeights.SemiBold, new Thickness(0));
+            var title = Label("Schedule night light", 15, _t.Ink, FontWeights.SemiBold, new Thickness(0));
             title.VerticalAlignment = VerticalAlignment.Center;
 
             _enabledBox = new CheckBox
@@ -126,14 +134,14 @@ namespace Monitorn.App
             _strengthBox.LostFocus += delegate { Render(); };   // leaving the field canonicalises or reverts it
             _strengthBox.KeyDown += OnCommitKey;
 
-            var percent = Label("%", 13, Ink, FontWeights.Normal, new Thickness(8, 0, 0, 0));
+            var percent = Label("%", 13, _t.Ink, FontWeights.Normal, new Thickness(8, 0, 0, 0));
             percent.VerticalAlignment = VerticalAlignment.Center;
 
             var grid = new Grid();
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(88) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition());
-            var caption = Label("Strength", 13, Ink, FontWeights.Normal, new Thickness(0));
+            var caption = Label("Strength", 13, _t.Ink, FontWeights.Normal, new Thickness(0));
             caption.VerticalAlignment = VerticalAlignment.Center;
             Grid.SetColumn(caption, 0);
             Grid.SetColumn(_strengthBox, 1);
@@ -211,7 +219,7 @@ namespace Monitorn.App
 
             _hoursNote = Label(
                 "These times are kept but not used while \"Sunset to sunrise\" is selected.",
-                11, Muted, FontWeights.Normal, new Thickness(0, 8, 0, 0));
+                11, _t.Muted, FontWeights.Normal, new Thickness(0, 8, 0, 0));
             _hoursPanel.Children.Add(_hoursNote);
             return _hoursPanel;
         }
@@ -219,7 +227,7 @@ namespace Monitorn.App
         /// <summary>One 12-hour clock: hour, colon, minute, AM/PM toggle.</summary>
         private Grid TimeRow(string caption, bool isOn, out TextBox hour, out TextBox minute, out Button meridiem)
         {
-            var label = Label(caption, 13, Ink, FontWeights.Normal, new Thickness(0));
+            var label = Label(caption, 13, _t.Ink, FontWeights.Normal, new Thickness(0));
             label.VerticalAlignment = VerticalAlignment.Center;
 
             hour = ClockBox();
@@ -227,7 +235,7 @@ namespace Monitorn.App
             hour.ToolTip = "Hour, 1-12";
             minute.ToolTip = "Minute, 00-59";
 
-            var colon = Label(":", 13, Muted, FontWeights.Normal, new Thickness(3, 0, 3, 0));
+            var colon = Label(":", 13, _t.Muted, FontWeights.Normal, new Thickness(3, 0, 3, 0));
             colon.VerticalAlignment = VerticalAlignment.Center;
 
             meridiem = new Button
@@ -238,8 +246,8 @@ namespace Monitorn.App
                 Margin = new Thickness(10, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 Cursor = Cursors.Hand,
-                Background = GearFill,
-                BorderBrush = GearEdge,
+                Background = _t.ControlFill,
+                BorderBrush = _t.ControlEdge,
                 BorderThickness = new Thickness(1),
                 ToolTip = "Switch between AM and PM",
             };
@@ -385,12 +393,7 @@ namespace Monitorn.App
             meridiem.Content = pm ? "PM" : "AM";
         }
 
-        // --- shared look (the same palette as the EXP03 surface) ---
-
-        private static readonly Brush Ink = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
-        private static readonly Brush Muted = new SolidColorBrush(Color.FromRgb(0x76, 0x76, 0x76));
-        private static readonly Brush GearFill = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
-        private static readonly Brush GearEdge = new SolidColorBrush(Color.FromRgb(0xD8, 0xD8, 0xD8));
+        // --- shared look: the one palette both windows draw from (EXP08, Theme.cs) ---
 
         private static TextBlock Label(string text, double size, Brush brush, FontWeight weight, Thickness margin)
         {
@@ -414,15 +417,20 @@ namespace Monitorn.App
     internal sealed class SettingsHost
     {
         private readonly ScheduleSettings _model;
+        private readonly ThemeState _theme;
         private Window _window;
 
-        public SettingsHost(ScheduleSettings model) { _model = model; }
+        public SettingsHost(ScheduleSettings model, ThemeState theme)
+        {
+            _model = model;
+            _theme = theme;
+        }
 
         public void Show()
         {
             if (_window == null)
             {
-                _window = SettingsSurface.Build(_model);
+                _window = SettingsSurface.Build(_model, _theme);
                 _window.Closed += delegate { _window = null; };
             }
 

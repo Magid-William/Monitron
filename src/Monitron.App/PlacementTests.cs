@@ -139,6 +139,20 @@ namespace Monitron.App
             Check(Box(PlacementGeometry.Clamp(new PlacementBox(0, 0, 2000, 900), primary.WorkArea), 0, 0, 2000, 900),
                 "one bigger than the work area stays where it is");
 
+            Console.WriteLine("which monitor the surface follows (EXP15)");
+            Check(PlacementChoice.Choose(true, false) == PlacementAnchor.Tray,
+                "a readable tray wins - the surface follows the notification area");
+            Check(PlacementChoice.Choose(true, true) == PlacementAnchor.Window,
+                "unless the seam asks for the window (the pre-EXP15 baseline)");
+            Check(PlacementChoice.Choose(false, false) == PlacementAnchor.Window,
+                "with no taskbar to read there is nothing to follow, so the window decides");
+            Check(PlacementChoice.Name(PlacementAnchor.Tray) == "tray" && PlacementChoice.Name(PlacementAnchor.Window) == "window",
+                "the two anchors have their report spelling");
+            PlacementAnchor anchorChoice;
+            Check(PlacementChoice.TryParseAnchor("tray", out anchorChoice) && anchorChoice == PlacementAnchor.Tray, "'tray' parses");
+            Check(PlacementChoice.TryParseAnchor("Window", out anchorChoice) && anchorChoice == PlacementAnchor.Window, "and 'Window' is case-insensitive");
+            Check(!PlacementChoice.TryParseAnchor("screen", out anchorChoice), "anything else does not");
+
             Console.WriteLine("the command-line text");
             Check(PlacementGeometry.Name(TaskbarEdge.Left) == "left", "Name(left) is 'left'");
             Check(PlacementGeometry.TryParseEdge("bottom", out edge) && edge == TaskbarEdge.Bottom, "'bottom' parses");

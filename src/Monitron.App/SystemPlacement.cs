@@ -20,6 +20,7 @@ namespace Monitron.App
         public PlacementBox Taskbar;    // the taskbar's own rectangle, empty when there is none
         public double Dpi = Dips.DefaultDpi;
         public TaskbarEdge? ForcedEdge;  // the verification seam: as if the taskbar were docked elsewhere
+        public string Anchor = "window"; // EXP15: which monitor decided - "tray" (the notification area) or "window"
 
         public bool HasTaskbar { get { return !Taskbar.IsEmpty; } }
 
@@ -28,7 +29,7 @@ namespace Monitron.App
             return new PlacementReading
             {
                 MonitorDevice = MonitorDevice, Monitor = Monitor, WorkArea = WorkArea, Taskbar = Taskbar,
-                Dpi = Dpi, ForcedEdge = ForcedEdge,
+                Dpi = Dpi, ForcedEdge = ForcedEdge, Anchor = Anchor,
             };
         }
 
@@ -36,6 +37,7 @@ namespace Monitron.App
         public string Describe()
         {
             var lines = new StringBuilder();
+            lines.AppendLine("anchor=" + Anchor);
             lines.AppendLine("monitor=" + MonitorDevice);
             lines.AppendLine("monitorRect=" + Monitor.Describe());
             lines.AppendLine("workArea=" + WorkArea.Describe());
@@ -53,14 +55,24 @@ namespace Monitron.App
         public TaskbarEdge? Edge;
         public double? Dpi;
         public PlacementBox? WorkArea;   // pixels
+        public PlacementBox? Monitor;    // pixels: as if the notification area's monitor were this (EXP15)
 
-        public bool Any { get { return Edge.HasValue || Dpi.HasValue || WorkArea.HasValue; } }
+        public bool Any { get { return Edge.HasValue || Dpi.HasValue || WorkArea.HasValue || Monitor.HasValue; } }
 
+        /// <summary>
+        /// Stand in for what the OS said about **the notification area's monitor** (the whole point of
+        /// EXP15), so the overrides apply only while the tray is the anchor. With --place-anchor window
+        /// they are inert: the window's own monitor is read for real and nothing is scripted over it,
+        /// which is exactly what makes the anchor the single variable a verifier changes.
+        /// </summary>
         public PlacementReading Apply(PlacementReading real)
         {
             PlacementReading clone = real.Copy();
+            if (real.Anchor != PlacementChoice.Name(PlacementAnchor.Tray)) return clone;
+
             if (Dpi.HasValue) clone.Dpi = Dpi.Value;
             if (WorkArea.HasValue) clone.WorkArea = WorkArea.Value;
+            if (Monitor.HasValue) clone.Monitor = Monitor.Value;
             clone.ForcedEdge = Edge;
             return clone;
         }
@@ -69,13 +81,27 @@ namespace Monitron.App
     /// <summary>Reads the desktop for a window. Never writes anything.</summary>
     public static class SystemPlacement
     {
-        public static PlacementReading Read(IntPtr window)
+        private const string MainTaskbar = "Shell_TrayWnd";
+
+        /// <summary>
+        /// Read the desktop. EXP15: the notification area's monitor decides where the surface goes,
+        /// because that is where the tray the user clicked lives - and it is the one thing that is
+        /// current while the surface sits hidden with a stale position. <paramref name="preferTray"/>
+        /// false pins the window's own monitor (the pre-EXP15 behaviour, and the baseline seam).
+        /// </summary>
+        public static PlacementReading Read(IntPtr window, bool preferTray)
         {
             var reading = new PlacementReading();
 
-            // The window's own monitor - the one it was launched on, as today - not the primary and not
-            // the taskbar's, so the flyout appears where the window already was.
-            IntPtr monitor = MonitorFromWindow(window, MonitorDefaultToNearest);
+            // The main taskbar always carries the clock and the notification area, so its monitor is
+            // where the tray is. When it cannot be read there is nothing to follow: the window decides.
+            IntPtr trayBar = FindWindow(MainTaskbar, null);
+            PlacementAnchor anchor = PlacementChoice.Choose(trayBar != IntPtr.Zero, !preferTray);
+            IntPtr monitor = anchor == PlacementAnchor.Tray
+                ? MonitorFromWindow(trayBar, MonitorDefaultToNearest)
+                : MonitorFromWindow(window, MonitorDefaultToNearest);
+            reading.Anchor = PlacementChoice.Name(anchor);
+
             var info = new MONITORINFOEX();
             info.cbSize = Marshal.SizeOf(typeof(MONITORINFOEX));
             if (monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref info))

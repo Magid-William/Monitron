@@ -1,4 +1,6 @@
 # EXP09 verification helper - prove where the surface lands, from outside the app.
+# EXP15: and that it follows the tray - the notification area's monitor decides, not the window's own,
+# and a real WM_DISPLAYCHANGE re-places it (--place-anchor / --place-monitor are the seams).
 #
 # Builds nothing. It runs the already-built Monitron.App.exe and then measures the window with two
 # witnesses that do not go through the app at all: UI Automation's BoundingRectangle for the window
@@ -395,7 +397,8 @@ $windowDip = ParseBox $report['window']
 $computedPx = Scaled $computed $dpi
 $marginPx = [double]$report['margin'] * ($dpi / 96.0)
 
-Check ($report['monitor'] -eq $mon.Device) "the app placed against the monitor the window is on ($($report['monitor']))"
+Check ($report['anchor'] -eq 'tray') "the default anchor is the tray - the notification area decides (EXP15)"
+Check ($report['monitor'] -eq $mon.Device) "the app placed against the monitor the window is on ($($report['monitor'])) - the tray and the window agree on this machine"
 Check (SameBox (ParseBox $report['workArea']) $mon.Work 0.5) "and against the work area this verifier reads ($(Str $mon.Work))"
 Check ([Math]::Abs($dpi - $mon.Dpi) -lt 0.01) "at the dpi this verifier reads ($($mon.Dpi))"
 Check ($report['corner'] -eq 'bottom') "it chose the bottom corner, where the taskbar is"
@@ -618,6 +621,67 @@ if ($others.Count -eq 0) {
     [void](ShotRegion (Join-Path $ShotDir '06-second-display.png') (CornerBox $second))
     StopApp $app2
 }
+
+# ---------------------------------------------------------------------------
+Write-Host "`n== the tray decides which display the surface opens on (EXP15) =="
+
+# The window starts on the primary. The seams below say "the notification area is on that other
+# display"; the two runs pass the SAME seams and differ in exactly one thing - --place-anchor. With
+# the tray anchor the surface follows the tray onto the other display; with the window anchor (the
+# pre-EXP15 rule) the seams are inert and the surface stays where the window is.
+
+$allDisplays2 = Monitors
+$others2 = @($allDisplays2 | Where-Object { $_.Device -ne $mon.Device })
+if ($others2.Count -eq 0) {
+    Note "only one display, so the tray cannot be scripted onto another - EXP15's anchor is not proven here"
+} else {
+    $target = $others2[0]
+    $seams = "--place-monitor $([int]$target.Full.L),$([int]$target.Full.T),$([int]$target.Full.R),$([int]$target.Full.B) " +
+             "--place-work $([int]$target.Work.L),$([int]$target.Work.T),$([int]$target.Work.R),$([int]$target.Work.B) " +
+             "--place-dpi $([int]$target.Dpi)"
+    Note "the scripted tray: $($target.Device) full $(Str $target.Full) work $(Str $target.Work) dpi $($target.Dpi)"
+
+    $win = Launch 'the Window anchor (the seams are inert)' "--place-anchor window $seams --place-report `"$ReportRoot\anchor-window`""
+    $winRect = UiaRect (Element $win.Hwnd)
+    $winMon = MonitorRead $win.Hwnd
+    $winReport = Require (Join-Path $ReportRoot 'anchor-window') 'the window anchor'
+    Note "window anchor: report monitor $(Str (ParseBox $winReport['monitorRect'])), window on $($winMon.Device) at $(Str $winRect)"
+    Check ($winReport['anchor'] -eq 'window') "the window anchor is what decided"
+    Check ($winMon.Device -eq $mon.Device) "so it stayed on the window's own display ($($mon.Device)), not the scripted tray"
+    Check (Inside $winRect $mon.Work 1) "inside that display's work area"
+    StopApp $win
+
+    $trayApp = Launch 'the Tray anchor (the seams apply)' "--place-anchor tray $seams --place-report `"$ReportRoot\anchor-tray`""
+    $trayRect = UiaRect (Element $trayApp.Hwnd)
+    $trayMon = MonitorRead $trayApp.Hwnd
+    $trayReport = Require (Join-Path $ReportRoot 'anchor-tray') 'the tray anchor'
+    Note "tray anchor: report monitor $(Str (ParseBox $trayReport['monitorRect'])), window on $($trayMon.Device) at $(Str $trayRect)"
+    Check ($trayReport['anchor'] -eq 'tray') "the tray anchor is what decided"
+    Check (SameBox (ParseBox $trayReport['monitorRect']) $target.Full 1) "and it followed the scripted tray monitor"
+    Check ($trayMon.Device -eq $target.Device) "the surface really opened on the tray's display, at a negative origin"
+    Check (Inside $trayRect $target.Work 1) "inside that display's work area"
+    Check ($trayRect.R -le $target.Work.R + 1 -and $trayRect.R -ge $target.Work.R - 30) "right-aligned to it"
+    Check (-not (Inside $trayRect $mon.Work 1)) "and not on the display the window was on"
+    [void](ShotRegion (Join-Path $ShotDir '07-tray-anchor.png') (CornerBox $target))
+    StopApp $trayApp
+}
+
+# ---------------------------------------------------------------------------
+Write-Host "`n== a real display message re-places the surface (EXP15) =="
+
+# EXP09 subscribed its re-place hook on SourceInitialized, which had already fired (Theming.Bind
+# creates the handle in the surface's constructor), so it never ran. EXP15 adds the hook on the spot,
+# so a real WM_DISPLAYCHANGE must come back as a placement.
+
+$hook = Launch 'a posted WM_DISPLAYCHANGE' "--place-report `"$ReportRoot\hook`""
+$before = [int](Require (Join-Path $ReportRoot 'hook') 'the hook run')['placements']
+Start-Sleep -Milliseconds 300
+[void][WinExp09]::PostMessage($hook.Hwnd, 0x007E, [IntPtr]::Zero, [IntPtr]::Zero)   # WM_DISPLAYCHANGE
+Start-Sleep -Milliseconds 1500
+$after = [int](Require (Join-Path $ReportRoot 'hook') 'the hook run')['placements']
+Note "placements $before -> $after after a real WM_DISPLAYCHANGE"
+Check ($after -gt $before) "the message re-placed the surface - the hook is live, not inert"
+StopApp $hook
 
 # ---------------------------------------------------------------------------
 Write-Host "`n== nothing else moved =="

@@ -19,6 +19,7 @@ only the user declares the final status.
 | EXP12 | The app icon: the neon-green logo, as the app's one multi-size .ico | success | EXP12 | 2026-10-15 | 2026-10-15 | [experiments/EXP12/README.md](experiments/EXP12/README.md) |
 | EXP13 | The slider knob: a click lands where you clicked | success | EXP13 | 2026-10-15 | 2026-10-15 | [experiments/EXP13/README.md](experiments/EXP13/README.md) |
 | EXP14 | Live displays: re-detect the display set on a display change | success | EXP14 | 2026-10-16 | 2026-10-16 | [experiments/EXP14/README.md](experiments/EXP14/README.md) |
+| EXP15 | The surface follows the tray: it opens on the notification area's monitor | inProg | EXP15 | 2026-10-16 | - | [experiments/EXP15/README.md](experiments/EXP15/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was

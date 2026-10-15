@@ -90,7 +90,7 @@ namespace Monitron.App
             Theming.Bind(window, _theme);   // the palette, and the templates the OS theme would keep light
             // EXP09: the surface now sits in the bottom-right corner, so an owner-centred settings window
             // would hang off the screen - keep it inside the work area (it is not resized, only moved).
-            Place.Clamp(window, SystemPlacement.Read);
+            Place.Clamp(window, delegate(IntPtr hwnd) { return SystemPlacement.Read(hwnd, true); });
             return window;
         }
 

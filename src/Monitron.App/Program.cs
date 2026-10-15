@@ -31,6 +31,12 @@
 //         --monitors / --display-change-after / --display-report are its verification seams; the
 //         placement (EXP09) and every other --place-* seam are unchanged. (A pointer-driven placement
 //         was tried in this experiment and rolled back; see experiments/EXP14/README.md.)
+// EXP15 - and the surface follows the tray: it opens on the monitor that holds the notification area
+//         (the main taskbar's monitor), re-read on launch, on Show and on a real display/settings/DPI
+//         change - not on the window's own monitor, which a hidden surface keeps stale. The re-place
+//         hook is added on the spot (WindowHook), where EXP09's SourceInitialized hook never fired.
+//         --place-anchor tray|window and --place-monitor are its seams; --place-report gains
+//         anchor= and placements=.
 //
 // One row per ACTIVE display: its real name, its real current brightness on a slider, and a gear
 // that opens the settings window (EXP04). Dragging a slider is debounced by BrightnessWriter and
@@ -405,6 +411,8 @@ namespace Monitron.App
             TaskbarEdge? placeEdge = null;   // --place-edge bottom|top|left|right: as if the taskbar were docked there
             double? placeDpi = null;         // --place-dpi N: as if the monitor scaled differently
             PlacementBox? placeWork = null;  // --place-work L,T,R,B: as if the work area were this (pixels)
+            bool placeTray = true;            // --place-anchor window: pin the pre-EXP15 anchor (the window's monitor)
+            PlacementBox? placeMonitor = null; // --place-monitor L,T,R,B: as if the notification area's monitor were this
             string placeReportDir = null;    // --place-report <dir>: the reading and the computed rectangle
             TimeSpan? placeAfter = null;     // --place-after <sec> L,T,R,B: a work-area change while it runs
             PlacementBox placeAfterWork = PlacementBox.Empty;
@@ -463,6 +471,20 @@ namespace Monitron.App
                     if (!PlacementGeometry.TryParseBox(args[++i], out box))
                         throw new ArgumentException("--place-work takes L,T,R,B in whole pixels");
                     placeWork = box;
+                }
+                else if (a == "--place-anchor" && i + 1 < args.Length)
+                {
+                    PlacementAnchor anchor;
+                    if (!PlacementChoice.TryParseAnchor(args[++i], out anchor))
+                        throw new ArgumentException("--place-anchor takes tray or window");
+                    placeTray = anchor == PlacementAnchor.Tray;
+                }
+                else if (a == "--place-monitor" && i + 1 < args.Length)
+                {
+                    PlacementBox box;
+                    if (!PlacementGeometry.TryParseBox(args[++i], out box))
+                        throw new ArgumentException("--place-monitor takes L,T,R,B in whole pixels");
+                    placeMonitor = box;
                 }
                 else if (a == "--place-report" && i + 1 < args.Length) placeReportDir = args[++i];
                 else if (a == "--place-after" && i + 2 < args.Length)
@@ -571,18 +593,20 @@ namespace Monitron.App
                 return;
             }
 
-            // --- the position: the notification area's corner of the monitor this window is on ---
-            // The reading is injectable (--place-edge / --place-dpi / --place-work) so a verifier can
-            // drive another taskbar edge, another DPI or another work area without moving the user's
-            // taskbar; --no-place is the baseline everything else is measured against.
+            // --- the position: the notification area's corner of the monitor the tray is on (EXP15) ---
+            // The reading is injectable (--place-edge / --place-dpi / --place-work / --place-monitor /
+            // --place-anchor) so a verifier can drive another taskbar edge, DPI, work area or tray
+            // monitor without moving the user's taskbar or displays; --no-place is the baseline
+            // everything else is measured against.
             Action replace = null;   // kept so showing the surface from the tray can re-place it
             if (place)
             {
-                var placeScript = new PlacementScript { Edge = placeEdge, Dpi = placeDpi, WorkArea = placeWork };
-                Func<IntPtr, PlacementReading> placementReading = SystemPlacement.Read;
+                var placeScript = new PlacementScript { Edge = placeEdge, Dpi = placeDpi, WorkArea = placeWork, Monitor = placeMonitor };
+                bool preferTray = placeTray;
+                Func<IntPtr, PlacementReading> placementReading = delegate(IntPtr hwnd) { return SystemPlacement.Read(hwnd, preferTray); };
                 if (placeScript.Any || placeAfter.HasValue)
                 {
-                    placementReading = delegate(IntPtr hwnd) { return placeScript.Apply(SystemPlacement.Read(hwnd)); };
+                    placementReading = delegate(IntPtr hwnd) { return placeScript.Apply(SystemPlacement.Read(hwnd, preferTray)); };
                 }
                 replace = Place.Attach(window, placementReading, placeMargin, placeReportDir);
 

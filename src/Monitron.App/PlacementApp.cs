@@ -34,7 +34,10 @@ namespace Monitron.App
             // Manual is what makes Left/Top ours: the WPF default would centre or cascade over them.
             window.WindowStartupLocation = WindowStartupLocation.Manual;
 
-            Action apply = delegate { Apply(window, read, margin, reportDir); };
+            // Counted so a verifier can prove a message really re-placed it (--place-report's
+            // placements=), the way --display-report's detections= proves a WM_DISPLAYCHANGE was seen.
+            int[] placements = new int[1];
+            Action apply = delegate { Apply(window, read, margin, reportDir, placements); };
             window.SourceInitialized += delegate { apply(); };
             window.Loaded += delegate { apply(); };
             window.SizeChanged += delegate { apply(); };   // SizeToContent: the height arrives late, and a resize must not walk off the corner
@@ -65,7 +68,8 @@ namespace Monitron.App
             window.SizeChanged += delegate { clamp(); };
         }
 
-        private static void Apply(Window window, Func<IntPtr, PlacementReading> read, double margin, string reportDir)
+        private static void Apply(Window window, Func<IntPtr, PlacementReading> read, double margin, string reportDir,
+            int[] placements)
         {
             IntPtr hwnd = new WindowInteropHelper(window).Handle;
             if (hwnd == IntPtr.Zero) return;
@@ -82,23 +86,26 @@ namespace Monitron.App
             PlacementBox box = PlacementGeometry.For(target, width, height, margin);
             Move(window, box);
 
-            if (reportDir != null) PlacementReport.Write(reportDir, "surface", reading, target, box, window, margin);
+            if (placements != null) placements[0]++;
+            if (reportDir != null)
+                PlacementReport.Write(reportDir, "surface", reading, target, box, window, margin, placements != null ? placements[0] : 0);
         }
 
-        /// <summary>Re-place on the messages that mean the desktop moved under us.</summary>
+        /// <summary>
+        /// Re-place on the messages that mean the desktop moved under us. The hook is added on the spot,
+        /// through WindowHook - NOT on SourceInitialized: the surface's handle already exists
+        /// (Theming.Bind calls EnsureHandle in its constructor), so a SourceInitialized subscription
+        /// added here would silently never run. That is the trap EXP09's own re-place hook fell into;
+        /// EXP14 found it and this experiment puts the hook where it actually fires.
+        /// </summary>
         private static void Follow(Window window, Action apply)
         {
-            window.SourceInitialized += delegate
+            WindowHook.Add(window, delegate(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
             {
-                HwndSource source = HwndSource.FromHwnd(new WindowInteropHelper(window).Handle);
-                if (source == null) return;
-                source.AddHook(delegate(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
-                {
-                    if (message == WM_SETTINGCHANGE || message == WM_DISPLAYCHANGE || message == WM_DPICHANGED)
-                        window.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, apply);   // let WPF finish its own response first
-                    return IntPtr.Zero;
-                });
-            };
+                if (message == WM_SETTINGCHANGE || message == WM_DISPLAYCHANGE || message == WM_DPICHANGED)
+                    window.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, apply);   // let WPF finish its own response first
+                return IntPtr.Zero;
+            });
         }
 
         private static PlacementReading Reading(Func<IntPtr, PlacementReading> read, IntPtr hwnd)
@@ -120,13 +127,14 @@ namespace Monitron.App
     public static class PlacementReport
     {
         public static void Write(string directory, string name, PlacementReading reading, PlacementTarget target,
-            PlacementBox computed, Window window, double margin)
+            PlacementBox computed, Window window, double margin, int placements)
         {
             try
             {
                 if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
                 var text = new System.Text.StringBuilder();
                 text.Append(reading.Describe());
+                text.AppendLine("placements=" + placements.ToString(CultureInfo.InvariantCulture));
                 text.AppendLine("margin=" + margin.ToString("0.##", CultureInfo.InvariantCulture));
                 text.AppendLine("windowDip=" + window.ActualWidth.ToString("0.##", CultureInfo.InvariantCulture) + "x"
                     + window.ActualHeight.ToString("0.##", CultureInfo.InvariantCulture));

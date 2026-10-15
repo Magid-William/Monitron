@@ -88,6 +88,38 @@ namespace Monitron.App
         }
     }
 
+    /// <summary>Which monitor the surface opens on: the notification area's, or the window's own.</summary>
+    public enum PlacementAnchor { Tray, Window }
+
+    /// <summary>
+    /// EXP15 - the monitor the surface follows. The notification area decides: the surface opens on the
+    /// monitor whose taskbar carries the tray, so a projection change that moves the tray moves the
+    /// surface. The window's own monitor - what EXP09 used, and what a hidden surface keeps stale - is
+    /// only the fallback, for a desktop with no taskbar to read at all.
+    /// </summary>
+    public static class PlacementChoice
+    {
+        /// <param name="trayFound">whether the notification area's taskbar could be read at all.</param>
+        /// <param name="askedForWindow">the verification seam that pins the pre-EXP15 behaviour.</param>
+        public static PlacementAnchor Choose(bool trayFound, bool askedForWindow)
+        {
+            return (!askedForWindow && trayFound) ? PlacementAnchor.Tray : PlacementAnchor.Window;
+        }
+
+        public static string Name(PlacementAnchor anchor)
+        {
+            return anchor == PlacementAnchor.Tray ? "tray" : "window";
+        }
+
+        public static bool TryParseAnchor(string text, out PlacementAnchor anchor)
+        {
+            if (string.Equals(text, "tray", StringComparison.OrdinalIgnoreCase)) { anchor = PlacementAnchor.Tray; return true; }
+            if (string.Equals(text, "window", StringComparison.OrdinalIgnoreCase)) { anchor = PlacementAnchor.Window; return true; }
+            anchor = PlacementAnchor.Tray;
+            return false;
+        }
+    }
+
     /// <summary>One OS reading, reduced to what the placement rule needs: a work area in DIPs and an edge.</summary>
     public sealed class PlacementTarget
     {

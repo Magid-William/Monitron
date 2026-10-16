@@ -391,12 +391,12 @@ namespace Monitron.App
 
         /// <summary>
         /// EXP17: how long a move to the Default takes - a settings edit, a launch in the day, the night
-        /// light switched off or inert. It is something the user just asked for, so it settles in a
-        /// minute rather than over the night's half-hour fade.
+        /// light switched off or inert. It is something the user just asked for, so it settles promptly
+        /// (twenty seconds) rather than over the night's half-hour fade.
         /// </summary>
-        private static readonly TimeSpan DayMove = TimeSpan.FromMinutes(1);
+        private static readonly TimeSpan DayMove = TimeSpan.FromSeconds(20);
 
-        /// <summary>One staircase step of the move to the Default (EXP17): a smooth minute, not a jump.</summary>
+        /// <summary>One staircase step of the move to the Default (EXP17): a smooth move, not a jump.</summary>
         private static readonly TimeSpan DayMoveStep = TimeSpan.FromSeconds(1);
 
         [STAThread]

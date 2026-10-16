@@ -38,9 +38,9 @@ display actually is.
     placeholder, and changing the Default all move the displays). Only the night phases dim.
   - A fade begins where the display is: `NightFrom` captured at turn-on, `DayFrom` at turn-off - so a
     slider value does not jump the fade back to a level the display is not at.
-  - A move to the Default gets its **own, short** ramp - `dayFade`/`dayStep`, **1 minute** by default -
+  - A move to the Default gets its **own, short** ramp - `dayFade`/`dayStep`, **20 seconds** by default -
     not the night's 30-minute fade: a settings edit is something the user just asked for, so it settles
-    in a minute. Both come from `Program.cs` (`DayMove`/`DayMoveStep`), with `--day-fade-seconds` /
+    promptly. Both come from `Program.cs` (`DayMove`/`DayMoveStep`), with `--day-fade-seconds` /
     `--day-step-seconds` to compress it for a verifier. The night fade is unchanged.
   - `Restore()` hands back the Default, not the reading it took at adoption.
   - `Program.cs` gains one seam (`--daylight N`) **and** a correction: `--no-schedule` must now mean the
@@ -93,10 +93,10 @@ _Pending._
   hours): it is "not dimming", and leaving it silent is exactly the bug the user hit
   (`mode=SunsetToSunrise` in their settings made every Default edit do nothing).
 - A user-initiated move must not borrow the night's timescale. EXP17's first cut reused the night fade
-  for the day ramp, so changing the Default took **30 minutes** (measured: the panel moved 90 - 60 over
+  for the day ramp, so changing the Default took **30 minutes** (measured: the panel moved 90 -> 60 over
   the whole half-hour). A value the user just typed has to settle like a slider, not like a bedtime fade;
-  the move to the Default is now its own 1-minute ramp (`DayMove`/`DayMoveStep`), measured at ~61 s live
-  (90-85-80-75-70-65-60). The lesson: measure the *shipped default*, not a staircase's happy path.
+  the move to the Default is now its own short ramp (`DayMove`/`DayMoveStep`, 20 s), measured at ~21 s
+  live (90-84-76-67-60). The lesson: measure the *shipped default* - a staircase's happy path proves nothing.
 - The phase stays clock-derived, but a move with **no boundary** (a launch or a Default edit in the
   day) cannot be: it needs its own per-display ramp anchor (`DayRampStart`/`DayRampFrom`/`DayRampTo`).
   Re-anchor it when the target changes; the same staircase code (`Fraction`, one write per step) applies.

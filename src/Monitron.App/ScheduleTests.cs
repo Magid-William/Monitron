@@ -54,7 +54,7 @@ namespace Monitron.App
             OverrideEndsTheNight();
             OverrideLapsesAtTheNextTurnOn();
             UserMoveByDayIsNotAnOverride();
-            SwitchingTheFeatureOffRestores();
+            SwitchingTheFeatureOffReturnsToDefault();
             SunsetModeIsInert();
             StrengthChangesTakeEffectAtOnce();
             RangesArePerDisplay();
@@ -67,6 +67,7 @@ namespace Monitron.App
             ADragIsTheDisplaysOwnDayValue();
             EditingTheDaylightReanchorsTheRamp();
             FadeOffJumpsToTheDaylight();
+            TheFeatureOffAppliesTheDefault();
 
             Console.WriteLine();
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
@@ -387,10 +388,10 @@ namespace Monitron.App
                 + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");
         }
 
-        private static void SwitchingTheFeatureOffRestores()
+        private static void SwitchingTheFeatureOffReturnsToDefault()
         {
-            Console.WriteLine("the switch off mid-night hands the display back");
-            var r = new Rig("17:00", "09:00", 30, 1, 38);
+            Console.WriteLine("EXP17: the switch off mid-night returns the display to the Default, smoothly");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 70);
             r.Clock.At(15, 23, 0);
             r.Scheduler.Advance();
             Check(r.Scheduler.Target("A") == 38, "23:00: dimmed");
@@ -398,12 +399,16 @@ namespace Monitron.App
             r.Settings.SetEnabled(false);
             List<NightWrite> w = new List<NightWrite>();
             foreach (NightWrite x in r.Scheduler.Advance()) w.Add(x);
-            Check(w.Count == 1 && w[0].Value == 70, "switching it off writes the day value back (got " + Dump(w) + ")");
+            Check(w.Count == 0, "the ramp starts where the display is, so nothing jumps (got " + Dump(w) + ")");
             Check(r.Scheduler.Phase == NightPhase.Off, "phase is Off");
-            Check(!r.Scheduler.Engaged, "and the schedule lets go");
+            Check(!r.Scheduler.Engaged, "and the schedule lets go of the night");
 
-            r.Clock.At(15, 23, 30);
-            Check(r.Scheduler.Advance().Count == 0, "and it stays quiet while off");
+            List<NightWrite> back = Run(r.Scheduler, r.Clock, TimeSpan.FromMinutes(1), 31);
+            Check(back.Count > 0 && NonDecreasing(back), "it ramps back up (got " + Dump(back) + ")");
+            Check(back[back.Count - 1].Value == 70, "and lands on the Default 70 (got "
+                + back[back.Count - 1].Value.ToString(CultureInfo.InvariantCulture) + ")");
+
+            Check(r.Scheduler.Advance().Count == 0, "then it stays quiet while off");
 
             r.Settings.SetEnabled(true);
             w.Clear();
@@ -671,6 +676,35 @@ namespace Monitron.App
             foreach (NightWrite x in r.Scheduler.Advance()) w.Add(x);
             Check(w.Count == 1 && w[0].Value == 90, "one write straight to 90 (got " + Dump(w) + ")");
             Check(r.Scheduler.Phase == NightPhase.Day, "and the phase stays Day");
+        }
+
+        private static void TheFeatureOffAppliesTheDefault()
+        {
+            Console.WriteLine("EXP17: with the night light off, the Default governs - and changing it moves the displays");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 90);
+            r.Settings.SetEnabled(false);
+            r.Clock.At(15, 12, 0);
+            Check(r.Scheduler.Advance().Count == 0, "the ramp starts at the value the display has now");
+            Check(r.Scheduler.Phase == NightPhase.Off, "phase is Off");
+
+            List<NightWrite> up = Run(r.Scheduler, r.Clock, TimeSpan.FromMinutes(1), 31);
+            Check(up.Count > 0 && NonDecreasing(up), "the display ramps to the Default even with the feature off (got " + Dump(up) + ")");
+            Check(up[up.Count - 1].Value == 90 && r.Scheduler.Target("A") == 90,
+                "and lands on the Default 90 (got "
+                + up[up.Count - 1].Value.ToString(CultureInfo.InvariantCulture) + ")");
+
+            r.Settings.TrySetDaylight("40");             // changing it moves the display again
+            List<NightWrite> down = Run(r.Scheduler, r.Clock, TimeSpan.FromMinutes(1), 32);
+            Check(NonIncreasing(down), "changing the Default turns the display around, no jump (got " + Dump(down) + ")");
+            Check(r.Scheduler.Target("A") == 40, "and it heads for the new Default 40 (got "
+                + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");
+
+            // Inert (a window with no length) still touches nothing, as it always did.
+            var inert = new Rig("17:00", "09:00", 30, 1, 38, 90);
+            inert.Settings.SetMode(ScheduleMode.SunsetToSunrise);
+            inert.Clock.At(15, 12, 0);
+            Check(inert.Scheduler.Advance().Count == 0, "Inert still writes nothing");
+            Check(inert.Scheduler.Target("A") == 70, "and it keeps its own reading");
         }
     }
 }

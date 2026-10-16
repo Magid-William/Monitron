@@ -640,6 +640,12 @@ namespace Monitron.App
                 saveError = store.Save(settings) ? null : store.LastError;
             };
 
+            // EXP17: with the night light off the day Default governs - so an off schedule now writes.
+            // --no-schedule must therefore mean "the schedule never touches a monitor": it is not asked
+            // at all, on the tick, on a display change, or on close. (The writer still runs, so a slider
+            // drag lands; the user's own On switch still runs the schedule - "off" just means "no night".)
+            Action applySchedule = delegate { Apply(scheduler, writer, schedule); };
+
             // --- EXP14: the display set is live. A display change re-reads it and reconciles the
             // rows, the writer and the schedule; the tray's Show does the same (below). ---
             Action refreshDisplays = delegate
@@ -650,7 +656,7 @@ namespace Monitron.App
                 WriteDisplayReport(displayReportDir, registry, view);
                 if (diff.Any)
                 {
-                    Apply(scheduler, writer);   // an arriving display takes the current phase at once
+                    applySchedule();   // an arriving display takes the current phase at once
                     view.Status.Text = StatusText(scheduler, saveError);
                 }
             };
@@ -671,8 +677,9 @@ namespace Monitron.App
                 change.Start();
             }
 
-            // One pass at launch, so a run started inside the night window dims at once.
-            Apply(scheduler, writer);
+            // One pass at launch, so a run started inside the night window dims at once (and a launch
+            // with the feature off applies the Default, EXP17).
+            applySchedule();
             view.Status.Text = StatusText(scheduler, saveError);
 
             // One timer drives both machines: the scheduler decides what it wants (and dedups it),
@@ -680,7 +687,7 @@ namespace Monitron.App
             var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
             timer.Tick += delegate
             {
-                Apply(scheduler, writer);
+                applySchedule();
                 view.Status.Text = StatusText(scheduler, saveError);
             };
             timer.Start();
@@ -698,7 +705,10 @@ namespace Monitron.App
                 if (cleanedUp) return;
                 cleanedUp = true;
                 timer.Stop();
-                foreach (NightWrite w in scheduler.Restore()) writer.Request(w.Id, w.Value);
+                if (schedule)   // --no-schedule never wrote, so it has nothing to give back (EXP17)
+                {
+                    foreach (NightWrite w in scheduler.Restore()) writer.Request(w.Id, w.Value);
+                }
                 writer.Flush();   // land the last value if the window closes mid-drag or mid-fade
                 if (controllerResources != null) controllerResources.Dispose();
             };
@@ -803,10 +813,18 @@ namespace Monitron.App
             }
         }
 
-        /// <summary>Asks the schedule what it wants and hands it to the writer, which debounces it.</summary>
-        private static void Apply(NightLightScheduler scheduler, BrightnessWriter writer)
+        /// <summary>
+        /// Asks the schedule what it wants and hands it to the writer, which debounces it. The writer
+        /// always advances - a slider drag must land whether or not the schedule is running - but with
+        /// <paramref name="scheduled"/> false the schedule is not asked at all (EXP17, the --no-schedule
+        /// seam: no scheduler-driven write, since an off schedule now applies the Default).
+        /// </summary>
+        private static void Apply(NightLightScheduler scheduler, BrightnessWriter writer, bool scheduled)
         {
-            foreach (NightWrite w in scheduler.Advance()) writer.Request(w.Id, w.Value);
+            if (scheduled)
+            {
+                foreach (NightWrite w in scheduler.Advance()) writer.Request(w.Id, w.Value);
+            }
             writer.Advance();
         }
 

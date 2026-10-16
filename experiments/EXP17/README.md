@@ -26,8 +26,15 @@ that needs to move during the day still jumping in one write.
     section's On switch, so it is always editable (its own `TextBox` seam for the verifier).
   - `NightLightScheduler`: `Observe` no longer stores the reading as the day value; a display's day
     value is the `daylight` percent scaled into `[Min, Max]`. `Request` (a slider drag) still sets that
-    display's own day value - the per-display override. The fade-out, the switch-off restore and
-    `Restore()` hand back what they did before.
+    display's own day value - the per-display override.
+  - The Default governs whenever the schedule is not dimming: the Day phase **and** the off state (so
+    switching the night light off, or changing Default while it is off, moves the displays). `Inert`
+    (a window with no length - the sunset placeholder or equal hours) stays silent, so it still touches
+    nothing. The move is the same staircase ramp; the morning (a clock-driven end) lands it in one step.
+  - `Restore()` hands back the day value (the configured Default), not the reading it took at adoption.
+  - `Program.cs` gains one seam (`--daylight N`) **and** a correction: `--no-schedule` must now mean the
+    schedule never writes (an off schedule writes the Default), so `Apply` asks the scheduler only when
+    the run is scheduled - while still advancing the writer, so a slider drag always lands.
   - The one new piece of state: because a launch during the day has no clock boundary, a display that
     must move in the Day phase carries the moment its ramp began (and the value it began from), so the
     move is a staircase over the gradual fade rather than one jump - `gradual fade` off keeps the jump.
@@ -51,8 +58,11 @@ that needs to move during the day still jumping in one write.
       (per-display day value). The setting is the default only for panels never touched.
 - [x] Does the setting own the whole day, not just the night-to-day transition? - **yes, everywhere,
       but smoothly**: a launch during the day moves to the day value as a staircase over the fade.
-- [x] Quit / switch-off mid-night - unchanged: hand back the value the display had when the schedule
-      took it over. The daylight value is the morning target, not a reset on close.
+- [x] Quit / switch-off mid-night - the Default governs, so switching the night light off ramps the
+      display back to the Default (smoothly), a change to the Default while off moves it too, and
+      `Restore()` on close leaves the display at the Default rather than a value read earlier.
+- [x] `--no-schedule` - it must not run the schedule at all now that "off" writes, so it never asks
+      the scheduler; the writer still runs so a slider drag lands.
 - [x] The label and the place - a **Default** row (`Default: [80]%`) *above* the night-light section,
       outside its On switch, per the user's sketch; same `[NN] %` shape and automation seam.
 - [x] The file - `daylight=NN` after `strength`, `version=1` unchanged (additive; old files load the
@@ -80,3 +90,7 @@ _Pending._
   *outside* the section must be excluded from the "the On switch gates the body" check.
 - A verifier that launches the schedule must pass `--daylight`, or the new Day-phase ramp moves the
   displays before the scenario starts (a no-op when the daylight equals the reading).
+- Once "off" also writes (the Default governs), `--no-schedule` has to *skip the scheduler*, not rely
+  on it being quiet - and the skip must gate only the scheduler call, not `writer.Advance()`: gating
+  both left a slider drag un-flushed and `verify-control` read the display unchanged. `Apply` takes the
+  flag now and always advances the writer.

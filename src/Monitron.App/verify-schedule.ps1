@@ -453,7 +453,7 @@ try {
                 $sw = $AE::FromHandle($sh)
                 $edits = @((FindType $sw ([System.Windows.Automation.ControlType]::Edit)))
                 $values = @($edits | ForEach-Object { ([System.Windows.Automation.ValuePattern]$_.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)).Current.Value })
-                Check (($values -join ',') -eq "$strength,$daylight,4,05,4,22") "it shows the running schedule: strength $strength, daylight $daylight, turn on 4:05, turn off 4:22 (got $($values -join ','))"
+                Check (($values -join ',') -eq "$daylight,$strength,4,05,4,22") "it shows the running schedule: default $daylight, strength $strength, turn on 4:05, turn off 4:22 (got $($values -join ','))"
                 Check (@((FindType $sw ([System.Windows.Automation.ControlType]::Text)) | ForEach-Object { $_.Current.Name }) -contains 'Schedule night light') "and it is the night-light schedule"
                 [void][WinExp06]::PostMessage($sh, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)   # WM_CLOSE
                 Start-Sleep -Milliseconds 700

@@ -30,7 +30,7 @@ namespace Monitron.App
         private RadioButton _sunsetRadio;
         private RadioButton _hoursRadio;
         private TextBox _strengthBox;
-        private TextBox _daylightBox;
+        private TextBox _defaultBox;
         private TextBox _onHour;
         private TextBox _onMinute;
         private TextBox _offHour;
@@ -58,11 +58,13 @@ namespace Monitron.App
         private Window Create()
         {
             var root = new StackPanel { Margin = new Thickness(18, 16, 18, 14) };
+            // EXP17: the Default brightness sits *outside* the night-light section - it is the level
+            // every display is returned to, and it is not something the schedule's own switch gates.
+            root.Children.Add(DefaultRow());
             root.Children.Add(Header());
 
             _body = new StackPanel();
             _body.Children.Add(StrengthRow());
-            _body.Children.Add(DaylightRow());
             _body.Children.Add(FadeRow());
             _body.Children.Add(ModeRow());
             _body.Children.Add(HoursPanel());
@@ -157,35 +159,39 @@ namespace Monitron.App
             return grid;
         }
 
-        private UIElement DaylightRow()
+        /// <summary>
+        /// EXP17: the Default brightness, above the night-light section - the level the schedule
+        /// returns each display to. It sits outside the section's On switch, so it is always editable.
+        /// </summary>
+        private UIElement DefaultRow()
         {
-            _daylightBox = new TextBox
+            _defaultBox = new TextBox
             {
                 Width = 46,
                 MaxLength = 3,
                 TextAlignment = TextAlignment.Right,
                 Padding = new Thickness(4, 2, 4, 2),
                 VerticalAlignment = VerticalAlignment.Center,
-                ToolTip = "Daylight brightness: the level the schedule returns each display to, 0-100 percent",
+                ToolTip = "Default brightness: the level the schedule returns each display to, 0-100 percent",
             };
-            _daylightBox.TextChanged += delegate { CommitDaylight(); };
-            _daylightBox.LostFocus += delegate { Render(); };   // leaving the field canonicalises or reverts it
-            _daylightBox.KeyDown += OnCommitKey;
+            _defaultBox.TextChanged += delegate { CommitDefault(); };
+            _defaultBox.LostFocus += delegate { Render(); };    // leaving the field canonicalises or reverts it
+            _defaultBox.KeyDown += OnCommitKey;
 
             var percent = Label("%", 13, _t.Ink, FontWeights.Normal, new Thickness(8, 0, 0, 0));
             percent.VerticalAlignment = VerticalAlignment.Center;
 
-            var grid = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+            var grid = new Grid { Margin = new Thickness(0, 0, 0, 14) };
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(88) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition());
-            var caption = Label("Daylight", 13, _t.Ink, FontWeights.Normal, new Thickness(0));
+            var caption = Label("Default:", 13, _t.Ink, FontWeights.Normal, new Thickness(0));
             caption.VerticalAlignment = VerticalAlignment.Center;
             Grid.SetColumn(caption, 0);
-            Grid.SetColumn(_daylightBox, 1);
+            Grid.SetColumn(_defaultBox, 1);
             Grid.SetColumn(percent, 2);
             grid.Children.Add(caption);
-            grid.Children.Add(_daylightBox);
+            grid.Children.Add(_defaultBox);
             grid.Children.Add(percent);
             return grid;
         }
@@ -344,10 +350,10 @@ namespace Monitron.App
             _model.TrySetStrength(_strengthBox.Text);
         }
 
-        private void CommitDaylight()
+        private void CommitDefault()
         {
             if (_rendering) return;
-            _model.TrySetDaylight(_daylightBox.Text);
+            _model.TrySetDaylight(_defaultBox.Text);
         }
 
         private void CommitTimes()
@@ -403,7 +409,7 @@ namespace Monitron.App
             {
                 _enabledBox.IsChecked = _model.Enabled;
                 _strengthBox.Text = _model.Strength.ToString(CultureInfo.InvariantCulture);
-                _daylightBox.Text = _model.Daylight.ToString(CultureInfo.InvariantCulture);
+                _defaultBox.Text = _model.Daylight.ToString(CultureInfo.InvariantCulture);
                 _fadeBox.IsChecked = _model.GradualFade;
                 _sunsetRadio.IsChecked = _model.Mode == ScheduleMode.SunsetToSunrise;
                 _hoursRadio.IsChecked = _model.Mode == ScheduleMode.SetHours;

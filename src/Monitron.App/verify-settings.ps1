@@ -188,7 +188,8 @@ function CountNamed([string]$name) {
 
 function ByName([string]$name) { return FindOne $win $AE::NameProperty $name }
 
-# The numeric fields, in reading order: strength, daylight, then the two clock rows.
+# The numeric fields, in reading order: the Default brightness (outside the section), then strength,
+# then the two clock rows.
 function Edits() {
     $all = FindType $win ([System.Windows.Automation.ControlType]::Edit)
     return @($all | Sort-Object { $_.Current.BoundingRectangle.Top }, { $_.Current.BoundingRectangle.Left })
@@ -329,8 +330,8 @@ foreach ($el in FindType $win ([System.Windows.Automation.ControlType]::Button))
 
 Write-Host "`n== the sketch, by default =="
 $edits = Edits
-Check ($edits.Count -eq 6) "six numeric fields: strength, daylight, hour+minute for each of the two times (got $($edits.Count))"
-Check (((EditValues) -join ',') -eq '38,80,5,00,9,00') "values are 38, daylight 80, turn on 5:00, turn off 9:00 (got $((EditValues) -join ','))"
+Check ($edits.Count -eq 6) "six numeric fields: default, strength, hour+minute for each of the two times (got $($edits.Count))"
+Check (((EditValues) -join ',') -eq '80,38,5,00,9,00') "values are default 80, strength 38, turn on 5:00, turn off 9:00 (got $((EditValues) -join ','))"
 Check ((Name (ByName 'gradual fade')) -eq 'gradual fade') "'gradual fade' checkbox is there"
 Check ((ToggleState 'gradual fade') -eq [System.Windows.Automation.ToggleState]::On) "'gradual fade' starts on"
 Check ((ToggleState 'On') -eq [System.Windows.Automation.ToggleState]::On) "the schedule starts on"
@@ -343,11 +344,11 @@ Write-Host "`n== option 1: sunset to sunrise =="
 SelectRadio 'Sunset to sunrise (12:00 AM - 12:00 AM)'
 $sunsetSelected = ([System.Windows.Automation.SelectionItemPattern](ByName 'Sunset to sunrise (12:00 AM - 12:00 AM)').GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)).Current.IsSelected
 Check $sunsetSelected "'Sunset to sunrise' is the selected option"
-Check (((EditValues) -join ',') -eq '38,80,5,00,9,00') "the kept times are still displayed, not cleared"
+Check (((EditValues) -join ',') -eq '80,38,5,00,9,00') "the kept times are still displayed, not cleared"
 $timeEdits = @((Edits) | Select-Object -Skip 2)
 Check (@($timeEdits | Where-Object { Enabled $_ }).Count -eq 0) "all four time fields are disabled under sunset (coupling)"
-Check (Enabled $edits[0]) "strength stays live under sunset"
-Check (Enabled $edits[1]) "daylight stays live under sunset"
+Check (Enabled $edits[0]) "the Default field stays live under sunset (it is outside the section)"
+Check (Enabled $edits[1]) "strength stays live under sunset"
 Check (Enabled (ByName 'gradual fade')) "'gradual fade' stays live under sunset"
 [void](ShotGood $h (Join-Path $ShotDir '02-sunset.png'))
 
@@ -355,45 +356,45 @@ Write-Host "`n== option 2: set hours =="
 SelectRadio 'Set hours'
 $hoursSelected = ([System.Windows.Automation.SelectionItemPattern](ByName 'Set hours').GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)).Current.IsSelected
 Check $hoursSelected "'Set hours' is the selected option"
-Check (((EditValues) -join ',') -eq '38,80,5,00,9,00') "the times survived the round trip"
+Check (((EditValues) -join ',') -eq '80,38,5,00,9,00') "the times survived the round trip"
 Check (@((Edits) | Select-Object -Skip 2 | Where-Object { Enabled $_ }).Count -eq 4) "all four time fields are live again"
 
 Write-Host "`n== drive strength =="
 # Driven through the Value pattern, not keystrokes: this works whatever window the desktop has
 # put in front, and it is what any automation or assistive tool would do.
-$strength = $edits[0]
+$strength = $edits[1]
 $fade = ByName 'gradual fade'
 $strengthPattern = [System.Windows.Automation.ValuePattern]$strength.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
 $strengthPattern.SetValue('55')
 Start-Sleep -Milliseconds 300
 $fade.SetFocus()                        # leaving the field canonicalises it
 Start-Sleep -Milliseconds 400
-Check ((EditValues)[0] -eq '55') "set 55 and it stuck (got $((EditValues)[0]))"
+Check ((EditValues)[1] -eq '55') "set strength 55 and it stuck (got $((EditValues)[1]))"
 $strengthPattern.SetValue('999')        # out of range on purpose
 Start-Sleep -Milliseconds 300
 $fade.SetFocus()
 Start-Sleep -Milliseconds 400
-Check ((EditValues)[0] -eq '55') "999 was refused and the field reverted to 55 (got $((EditValues)[0]))"
+Check ((EditValues)[1] -eq '55') "999 was refused and strength reverted to 55 (got $((EditValues)[1]))"
 [void](ShotGood $h (Join-Path $ShotDir '03-strength-55.png'))
 
-Write-Host "`n== drive daylight =="
-$daylightPattern = [System.Windows.Automation.ValuePattern]$edits[1].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
-$daylightPattern.SetValue('70')
+Write-Host "`n== drive the Default brightness (outside the section) =="
+$defaultPattern = [System.Windows.Automation.ValuePattern]$edits[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+$defaultPattern.SetValue('70')
 Start-Sleep -Milliseconds 300
 $fade.SetFocus()
 Start-Sleep -Milliseconds 400
-Check ((EditValues)[1] -eq '70') "set daylight 70 and it stuck (got $((EditValues)[1]))"
-$daylightPattern.SetValue('999')        # out of range on purpose
+Check ((EditValues)[0] -eq '70') "set Default 70 and it stuck (got $((EditValues)[0]))"
+$defaultPattern.SetValue('999')         # out of range on purpose
 Start-Sleep -Milliseconds 300
 $fade.SetFocus()
 Start-Sleep -Milliseconds 400
-Check ((EditValues)[1] -eq '70') "999 was refused and daylight reverted to 70 (got $((EditValues)[1]))"
+Check ((EditValues)[0] -eq '70') "999 was refused and Default reverted to 70 (got $((EditValues)[0]))"
 
 Write-Host "`n== drive the AM/PM toggle =="
 $onMeridiem = ByName 'PM'          # the turn-on toggle, currently PM
 Invoke $onMeridiem
 Check ((CountNamed 'PM') -eq 0 -and (CountNamed 'AM') -eq 2) "turn on flipped from PM to AM (PM toggles now: $(CountNamed 'PM'), AM: $(CountNamed 'AM'))"
-Check (((EditValues) -join ',') -eq '55,70,5,00,9,00') "only the meridiem changed; the numbers are untouched"
+Check (((EditValues) -join ',') -eq '70,55,5,00,9,00') "only the meridiem changed; the numbers are untouched"
 Invoke $onMeridiem                 # the same element, now reading AM
 Check ((CountNamed 'PM') -eq 1 -and (CountNamed 'AM') -eq 1) "and back to PM"
 
@@ -401,22 +402,23 @@ Write-Host "`n== the On switch gates the body =="
 Toggle 'On'
 Check ((ToggleState 'On') -eq [System.Windows.Automation.ToggleState]::Off) "the schedule is off"
 $body = @()
-$body += Edits
+$body += @((Edits) | Select-Object -Skip 1)   # the Default field is outside the section
 $body += FindType $win ([System.Windows.Automation.ControlType]::RadioButton)
 $body += @(ByName 'gradual fade')
 $body += Buttons
 $stillLive = @($body | Where-Object { Enabled $_ })
-Check ($stillLive.Count -eq 0) "every control in the body is disabled (still live: $($stillLive.Count) of $($body.Count))"
+Check ($stillLive.Count -eq 0) "every control in the section is disabled (still live: $($stillLive.Count) of $($body.Count))"
 Check (Enabled (ByName 'On')) "the On switch itself stays usable"
+Check ((EditValues)[0] -eq '70') "and the Default field (outside the section) stays live"
 [void](ShotGood $h (Join-Path $ShotDir '04-off.png'))
 Toggle 'On'
 Check ((ToggleState 'On') -eq [System.Windows.Automation.ToggleState]::On) "and back on"
-Check (@((Edits) | Where-Object { Enabled $_ }).Count -eq 6) "the body is live again"
+Check (@((Edits) | Where-Object { Enabled $_ }).Count -eq 6) "everything is live again"
 
 Write-Host "`n== gradual fade =="
 Toggle 'gradual fade'
 Check ((ToggleState 'gradual fade') -eq [System.Windows.Automation.ToggleState]::Off) "'gradual fade' toggles off"
-Check ((EditValues)[0] -eq '55') "nothing else moved with it"
+Check ((EditValues)[1] -eq '55') "nothing else moved with it"
 Toggle 'gradual fade'
 Check ((ToggleState 'gradual fade') -eq [System.Windows.Automation.ToggleState]::On) "and back on"
 

@@ -2,7 +2,8 @@
 
 ## Summary
 The schedule hands every display back a "day value" it read off the panel at adoption, not one you
-state. Add a **Daylight** percent to the settings, and let the morning return each screen to it.
+state. Add a **Default** percent to the settings (`Default: [90]%`, above the night-light section),
+and let the morning return each screen to it.
 
 ## Hypothesis
 With a `daylight` value in the settings, the schedule's day value for a display is that percent scaled
@@ -21,7 +22,8 @@ that needs to move during the day still jumping in one write.
 - Method: the schedule stays a clock-driven machine (no `Thread.Sleep`, no timer in the model), and
   the UI claim is driven through UI Automation patterns, per `AGENTS.md`.
   - `ScheduleSettings` gains `Daylight` (0-100) with `TrySetDaylight`, and the settings window a new
-    **Daylight** row under **Strength** (its own `TextBox` seam for the verifier).
+    **Default** row (`Default: [80]%`) *above* the "Schedule night light" section - outside the
+    section's On switch, so it is always editable (its own `TextBox` seam for the verifier).
   - `NightLightScheduler`: `Observe` no longer stores the reading as the day value; a display's day
     value is the `daylight` percent scaled into `[Min, Max]`. `Request` (a slider drag) still sets that
     display's own day value - the per-display override. The fade-out, the switch-off restore and
@@ -51,7 +53,8 @@ that needs to move during the day still jumping in one write.
       but smoothly**: a launch during the day moves to the day value as a staircase over the fade.
 - [x] Quit / switch-off mid-night - unchanged: hand back the value the display had when the schedule
       took it over. The daylight value is the morning target, not a reset on close.
-- [x] The label - a new **Daylight** row under **Strength**, same `[NN] %` shape and automation seam.
+- [x] The label and the place - a **Default** row (`Default: [80]%`) *above* the night-light section,
+      outside its On switch, per the user's sketch; same `[NN] %` shape and automation seam.
 - [x] The file - `daylight=NN` after `strength`, `version=1` unchanged (additive; old files load the
       default).
 
@@ -71,8 +74,9 @@ _Pending._
   (`... | Where-Object`), which **Windows PowerShell 5.1 rejects** ("An empty pipe element is not
   allowed"). Run those two with pwsh: `& .\verify-position.ps1`. The `*-test.ps1` suites run under
   either.
-- `verify-settings.ps1` / `verify-persistence.ps1` read the numeric fields in on-screen order
-  (strength, daylight, then the two clock rows): **adding a settings row shifts the indexes and the
-  expected value list** - both had `38,5,00,9,00` and now read `38,80,5,00,9,00`.
+- `verify-settings.ps1` / `verify-persistence.ps1` read the numeric fields in on-screen order (the
+  Default field, then strength, then the two clock rows): **adding a settings row shifts the indexes
+  and the expected value list** - the order went from `38,5,00,9,00` to `80,38,5,00,9,00`, and a field
+  *outside* the section must be excluded from the "the On switch gates the body" check.
 - A verifier that launches the schedule must pass `--daylight`, or the new Day-phase ramp moves the
   displays before the scenario starts (a no-op when the daylight equals the reading).

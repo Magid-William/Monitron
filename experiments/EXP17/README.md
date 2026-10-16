@@ -38,10 +38,13 @@ display actually is.
     placeholder, and changing the Default all move the displays). Only the night phases dim.
   - A fade begins where the display is: `NightFrom` captured at turn-on, `DayFrom` at turn-off - so a
     slider value does not jump the fade back to a level the display is not at.
-  - A move to the Default gets its **own, short** ramp - `dayFade`/`dayStep`, **5 seconds** by default -
-    not the night's 30-minute fade: a settings edit is something the user just asked for, so it settles
-    promptly. Both come from `Program.cs` (`DayMove`/`DayMoveStep`), with `--day-fade-seconds` /
-    `--day-step-seconds` to compress it for a verifier. The night fade is unchanged.
+  - A move to the Default runs at a **constant speed in fixed-size steps** - `daySpeed` (10 points/s) and
+    `dayGrain` (2 points) - not the night's 30-minute fade: the duration follows the distance, so a
+    one-point edit is a single write and a long move glides, and every step is the same size, so
+    smoothness does not depend on the distance. Both come from `Program.cs` (`DaySpeed`/`DayGrain`), with
+    `--day-speed` / `--day-grain` for a verifier. A ramp step goes through `writer.Apply` (due at once),
+    because steps are 200 ms apart and the slider's 250 ms settle would swallow them. The night fade is
+    unchanged.
   - `Restore()` hands back the Default, not the reading it took at adoption.
   - `Program.cs` gains one seam (`--daylight N`) **and** a correction: `--no-schedule` must now mean the
     schedule never writes (an off schedule writes the Default), so `Apply` asks the scheduler only when
@@ -92,13 +95,16 @@ _Pending._
 - The Default must apply in the **inert** state too (the sunset placeholder with no location, equal
   hours): it is "not dimming", and leaving it silent is exactly the bug the user hit
   (`mode=SunsetToSunrise` in their settings made every Default edit do nothing).
-- A user-initiated move must not borrow the night's timescale. EXP17's first cut reused the night fade
-  for the day ramp, so changing the Default took **30 minutes** (measured: the panel moved 90 -> 60 over
-  the whole half-hour). A value the user just typed has to settle like a slider, not like a bedtime fade;
-  the move to the Default is now its own short ramp (`DayMove`/`DayMoveStep`, 5 s), measured at ~6 s
-  live (90-84-75-66-60). The step must stay above the writer's 250 ms settle (500 ms here), or the writer
-  coalesces the steps and the move becomes a jump. The lesson: measure the *shipped default* - a
-  staircase's happy path proves nothing.
+- A user-initiated move must not borrow the night's timescale, and it must not be a *fixed duration*
+  either. Reusing the night fade made a settings edit take 30 minutes; a fixed 5-second ramp then made a
+  **one-point** edit wait 5 seconds while a 70-point one jumped 7 points per write. The right shape is a
+  **constant speed in fixed-size steps** (10 points/s, 2 points per step): the duration follows the
+  distance, and smoothness does not. Measured live: 90 -> 91 lands in one write (~0.3 s); 91 -> 20 glides
+  in ~7.6 s in small even steps. The lesson: measure the *shipped default* and poke both ends of the
+  range - one happy path proves nothing.
+- The writer's 250 ms settle is a *slider* debounce; a ramp step 200 ms after the last would be coalesced
+  away and the move would jump. So scheduler values go through `writer.Apply` (due at once) while slider
+  drags keep `writer.Request`. The settle is about input, not output.
 - The phase stays clock-derived, but a move with **no boundary** (a launch or a Default edit in the
   day) cannot be: it needs its own per-display ramp anchor (`DayRampStart`/`DayRampFrom`/`DayRampTo`).
   Re-anchor it when the target changes; the same staircase code (`Fraction`, one write per step) applies.

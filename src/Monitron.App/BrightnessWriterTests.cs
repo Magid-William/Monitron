@@ -66,6 +66,7 @@ namespace Monitron.App
             FailureIsSurfacedNotRetried();
             IndependentPerMonitor();
             FlushLandsPending();
+            ApplyIsNotDebounced();
 
             Console.WriteLine();
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
@@ -174,6 +175,43 @@ namespace Monitron.App
             w.Flush();
             Check(fake.Writes.Count == 1 && fake.Writes[0] == "A=25", "flush writes it now");
             Check(w.IsIdle, "nothing pending afterwards");
+        }
+
+        private static void ApplyIsNotDebounced()
+        {
+            Console.WriteLine("EXP17: a schedule apply lands at once - the settle window is for slider drags");
+            var fake = new FakeController("A");
+            var clock = new FakeClock();
+            var w = new BrightnessWriter(fake, Settle, delegate { return clock.Now; });
+            w.Seed("A", 50);
+
+            w.Apply("A", 52);
+            w.Advance();
+            Check(fake.Writes.Count == 1 && fake.Writes[0] == "A=52",
+                "it lands on the very next Advance, with no settle wait (got " + Dump(fake) + ")");
+
+            // The cadence a 10 points/s ramp with a 2-point grain actually uses: 200 ms apart, inside
+            // the 250 ms settle. A debounced write here would be swallowed and the move would jump.
+            clock.Advance(TimeSpan.FromMilliseconds(200));
+            w.Apply("A", 54);
+            w.Advance();
+            clock.Advance(TimeSpan.FromMilliseconds(200));
+            w.Apply("A", 56);
+            w.Advance();
+            Check(fake.Writes.Count == 3 && w.Applied("A") == 56,
+                "consecutive 200 ms steps are not coalesced away (got " + Dump(fake) + ")");
+
+            w.Request("A", 40);              // a slider drag still waits for the settle
+            w.Advance();
+            Check(fake.Writes.Count == 3, "a slider Request is still debounced (got " + Dump(fake) + ")");
+            clock.Advance(Settle);
+            w.Advance();
+            Check(fake.Writes.Count == 4 && fake.Writes[3] == "A=40", "and lands once it settles");
+        }
+
+        private static string Dump(FakeController fake)
+        {
+            return string.Join(",", fake.Writes.ToArray());
         }
     }
 }

@@ -390,17 +390,17 @@ namespace Monitron.App
         private static readonly TimeSpan Step = TimeSpan.FromMinutes(1);
 
         /// <summary>
-        /// EXP17: how long a move to the Default takes - a settings edit, a launch in the day, the night
-        /// light switched off or inert. It is something the user just asked for, so it settles promptly
-        /// (five seconds) rather than over the night's half-hour fade.
+        /// EXP17: how fast a move to the Default runs, in points per second - a settings edit, a launch
+        /// in the day, the night light switched off or inert. The duration follows the distance, so a
+        /// one-point edit is a single write and a long move glides, rather than a fixed wait either way.
         /// </summary>
-        private static readonly TimeSpan DayMove = TimeSpan.FromSeconds(5);
+        private static readonly double DaySpeed = 10.0;
 
         /// <summary>
-        /// One staircase step of the move to the Default (EXP17): ten of them, so it is a smooth move,
-        /// not a jump - and comfortably longer than the writer's 250 ms settle, or steps would coalesce.
+        /// EXP17: the size of one step of that move, in points. Fixed, so how smooth the move looks does
+        /// not depend on how far the display has to travel.
         /// </summary>
-        private static readonly TimeSpan DayMoveStep = TimeSpan.FromMilliseconds(500);
+        private static readonly int DayGrain = 2;
 
         [STAThread]
         private static void Main(string[] args)
@@ -416,8 +416,8 @@ namespace Monitron.App
             int? daylight = null;        // --daylight N (EXP17: the value the night light returns to)
             TimeSpan? fade = null;       // --fade-seconds N (the whole fade in N seconds)
             TimeSpan? step = null;       // --step-seconds N (one staircase step every N seconds)
-            TimeSpan? dayFade = null;    // --day-fade-seconds N (EXP17: the move to the Default in N seconds)
-            TimeSpan? dayStep = null;    // --day-step-seconds N (EXP17: one step of that move)
+            double? daySpeed = null;     // --day-speed N (EXP17: the move to the Default, in points/second)
+            int? dayGrain = null;        // --day-grain N (EXP17: one step of that move, in points)
             string settingsFile = null;   // --settings-file <path>: where the settings live (verification)
             ThemePreference preference = ThemePreference.Auto; // --theme auto|light|dark
             bool osGiven = false;         // --os-theme light|dark: stand in for the OS reading
@@ -462,8 +462,8 @@ namespace Monitron.App
                 else if (a == "--daylight" && i + 1 < args.Length) daylight = int.Parse(args[++i], CultureInfo.InvariantCulture);
                 else if (a == "--fade-seconds" && i + 1 < args.Length) fade = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
                 else if (a == "--step-seconds" && i + 1 < args.Length) step = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
-                else if (a == "--day-fade-seconds" && i + 1 < args.Length) dayFade = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
-                else if (a == "--day-step-seconds" && i + 1 < args.Length) dayStep = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
+                else if (a == "--day-speed" && i + 1 < args.Length) daySpeed = double.Parse(args[++i], CultureInfo.InvariantCulture);
+                else if (a == "--day-grain" && i + 1 < args.Length) dayGrain = int.Parse(args[++i], CultureInfo.InvariantCulture);
                 else if (a == "--settings-file" && i + 1 < args.Length) settingsFile = args[++i];
                 else if (a == "--theme" && i + 1 < args.Length)
                 {
@@ -595,7 +595,7 @@ namespace Monitron.App
             var writer = new BrightnessWriter(controller, Settle, clock);
             var scheduler = new NightLightScheduler(settings, clock,
                 fade.HasValue ? fade.Value : Fade, step.HasValue ? step.Value : Step,
-                dayFade.HasValue ? dayFade.Value : DayMove, dayStep.HasValue ? dayStep.Value : DayMoveStep);
+                daySpeed.HasValue ? daySpeed.Value : DaySpeed, dayGrain.HasValue ? dayGrain.Value : DayGrain);
             var registry = new DisplayRegistry(controller, writer, scheduler);
             IList<MonitorInfo> monitors = registry.Seed();   // adopt every display: a row, a seed, an observe
 
@@ -841,7 +841,7 @@ namespace Monitron.App
         {
             if (scheduled)
             {
-                foreach (NightWrite w in scheduler.Advance()) writer.Request(w.Id, w.Value);
+                foreach (NightWrite w in scheduler.Advance()) writer.Apply(w.Id, w.Value);
             }
             writer.Advance();
         }

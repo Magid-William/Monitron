@@ -128,6 +128,18 @@ namespace Monitron.App
             e.Error = null;   // a new move is the retry
         }
 
+        /// <summary>
+        /// EXP17: a value the schedule's ramp decided - deliberate and paced by the schedule, not a
+        /// stream of slider events, so it is due at once and the settle window cannot swallow a step.
+        /// </summary>
+        public void Apply(string id, int value)
+        {
+            Entry e = Get(id);
+            e.Target = value;
+            e.Due = _now();
+            e.Error = null;
+        }
+
         /// <summary>Writes every monitor whose value has settled. Returns how many writes were made.</summary>
         public int Advance()
         {

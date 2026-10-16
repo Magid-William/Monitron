@@ -5,9 +5,9 @@
 //         is not dimming (Day, switched off, or the sunset placeholder), and a slider drag is
 //         *ephemeral* - it moves the display and stands the schedule down for it only until the next
 //         boundary (the coming turn-on or turn-off), where the schedule resumes. A move with no clock
-//         boundary carries its own ramp - and, being something the user just asked for, a *short* one
-//         (dayFade/dayStep: 5 seconds by default) rather than the 30-minute night fade. Every ramp is
-//         the same staircase, so a move steps at most once per its own step.
+//         boundary carries its own ramp at a *constant speed* in *fixed-size* steps (daySpeed/dayGrain),
+//         not the 30-minute night fade: a one-point edit is a single write, a long move glides, and
+//         every step is the same size.
 //
 // Inputs: the clock and ScheduleSettings. Output: the brightness values the schedule wants the
 // displays to have *now*, as a list of writes the caller hands to BrightnessWriter. There is no
@@ -93,8 +93,8 @@ namespace Monitron.App
         private readonly Func<DateTimeOffset> _now;
         private readonly TimeSpan _fade;      // the night fade (down, and back up in the morning)
         private readonly TimeSpan _step;
-        private readonly TimeSpan _dayFade;   // EXP17: a move to the Default - short, it is not the night
-        private readonly TimeSpan _dayStep;
+        private readonly double _daySpeed;    // EXP17: a move to the Default, in points per second
+        private readonly int _dayGrain;       // ... in steps this size, so smoothness is size-independent
         private readonly Dictionary<string, Entry> _entries = new Dictionary<string, Entry>();
 
         private NightPhase _phase = NightPhase.Day;
@@ -102,14 +102,14 @@ namespace Monitron.App
         private int _lastDaylight;          // to notice a Default edit (EXP17)
 
         public NightLightScheduler(ScheduleSettings settings, Func<DateTimeOffset> now, TimeSpan fade, TimeSpan step,
-            TimeSpan dayFade, TimeSpan dayStep)
+            double daySpeed, int dayGrain)
         {
             _settings = settings;
             _now = now;
             _fade = fade > TimeSpan.Zero ? fade : TimeSpan.Zero;
             _step = step > TimeSpan.Zero ? step : TimeSpan.FromMinutes(1);
-            _dayFade = dayFade > TimeSpan.Zero ? dayFade : TimeSpan.FromMinutes(1);
-            _dayStep = dayStep > TimeSpan.Zero ? dayStep : TimeSpan.FromSeconds(1);
+            _daySpeed = daySpeed > 0 ? daySpeed : 10.0;
+            _dayGrain = dayGrain > 0 ? dayGrain : 1;
             _lastDaylight = settings.Daylight;
         }
 
@@ -357,16 +357,17 @@ namespace Monitron.App
         }
 
         /// <summary>
-        /// EXP17: a display that must move in the day. There is no clock boundary to anchor this ramp
-        /// (the app may have just started, or the Default may have just been edited), so it carries its
-        /// own start - one step per `step`, and a single step when gradual fade is off.
+        /// EXP17: a move to the Default, at a *constant speed* in *fixed-size* steps. There is no clock
+        /// boundary to anchor it (the app may have just started, or the Default may have just been
+        /// edited), and it must not borrow the night's half hour: the duration is the distance over
+        /// `daySpeed`, so a one-point edit is a single write and a long move glides, and every step is
+        /// `dayGrain` points, so smoothness does not depend on how far the display has to travel.
         /// </summary>
         private int DayRamp(Entry e, DateTimeOffset now, TimeSpan fade)
         {
             int to = DayTarget(e);
             // `fade` is the night fade, passed only for its sign: zero means gradual fade is off, so
-            // the Default lands in one step. The ramp's own length is the short day move (EXP17), so a
-            // settings edit is not drawn out over the 30-minute night fade.
+            // the Default lands in one step.
             if (!e.HasLast || e.Last == to || fade <= TimeSpan.Zero)
             {
                 e.HasDayRamp = false;
@@ -380,13 +381,20 @@ namespace Monitron.App
                 e.DayRampStart = now;
                 e.DayRampTo = to;
             }
-            return Lerp(e.DayRampFrom, to, Fraction(now - e.DayRampStart, _dayFade, _dayStep));
+
+            int delta = Math.Abs(to - e.DayRampFrom);
+            int dir = to >= e.DayRampFrom ? 1 : -1;
+            double seconds = (now - e.DayRampStart).TotalSeconds;
+            int steps = (int)Math.Floor(seconds * _daySpeed / _dayGrain);
+            if (steps < 0) steps = 0;
+            long moved = (long)steps * _dayGrain;
+            if (moved >= delta) return to;
+            return e.DayRampFrom + dir * (int)moved;
         }
 
         /// <summary>
-        /// How far into a fade we are, as a step of the staircase: the value changes at most once per
-        /// `step`, so a 30-minute night fade is ~30 writes and a 5-second day move ~10, no matter how
-        /// often it is ticked.
+        /// How far into the night fade we are, as a step of the staircase: the value changes at most once
+        /// per `step`, so a 30-minute fade is ~30 writes per display no matter how often it is ticked.
         /// </summary>
         private static double Fraction(TimeSpan elapsed, TimeSpan fade, TimeSpan step)
         {

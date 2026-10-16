@@ -1,8 +1,11 @@
 // EXP06 - the night-light schedule as a state machine.
-// EXP17 - the day value is *configured* (Settings.Daylight), not read off the panel: a display the
-//         app meets while it is already dimmed no longer comes back dim. A move in the Day phase has
-//         no clock boundary to anchor it, so it carries its own ramp (per display) and still steps at
-//         most once per `step`. A slider drag stays the user's own day value for that display.
+// EXP17 - the day value is *configured* (Settings.Daylight), not read off the panel and not set by the
+//         slider: a display the app meets while it is already dimmed no longer comes back dim, and a
+//         slider drag no longer becomes tomorrow's day value. The Default governs whenever the schedule
+//         is not dimming (Day, switched off, or the sunset placeholder), and a slider drag is
+//         *ephemeral* - it moves the display and stands the schedule down for it only until the next
+//         boundary (the coming turn-on or turn-off), where the schedule resumes. A move with no clock
+//         boundary carries its own ramp, so it still steps at most once per `step`.
 //
 // Inputs: the clock and ScheduleSettings. Output: the brightness values the schedule wants the
 // displays to have *now*, as a list of writes the caller hands to BrightnessWriter. There is no
@@ -12,10 +15,9 @@
 //
 // The phase is *derived from the clock*, not accumulated: an Advance() that lands well past a
 // boundary computes the same phase as one that walked there tick by tick. The carried state is only
-// what the clock cannot tell us - the reading each display had when we took it over, the user's own
-// day value if a slider set one, the last value we asked for, and whether the user has taken a display
-// over for this night. EXP17 adds one more: a move in the day (or with the feature off) has no boundary
-// to anchor it, so it carries its own ramp, step by step, instead of jumping.
+// what the clock cannot tell us - the reading each display had when we took it over, the last value
+// we asked for, an ephemeral slider value and when it expires, and where each fade began (a Day-phase
+// move has no boundary, and a fade must start from where the display actually is).
 //
 // C# 5 only - the in-box csc.exe (.NET Framework 4.0 compiler) is what builds this.
 
@@ -49,12 +51,13 @@ namespace Monitron.App
     ///   * Advance() recomputes the phase from the clock and returns only the displays whose
     ///     wanted value changed - so ticking often is free and a fade costs at most `fade/step`
     ///     writes per display.
-    ///   * The night level is the strength scaled into the display's own range, and the day value is
-    ///     the configured daylight scaled the same way (EXP17) unless the user set this display's own.
-    ///   * Request() is the *user* moving a slider: it becomes the day value, and inside the night
-    ///     window it ends the schedule for that display for that night (nothing is written until
-    ///     the next turn-on).
-    ///   * Restore() hands every display its day value back; it is what the app calls on close.
+    ///   * The night level is the strength scaled into the display's own range; the day value is the
+    ///     configured Default scaled the same way (EXP17).
+    ///   * Request() is the *user* moving a slider: it is ephemeral - it moves the display and stands
+    ///     the schedule down for it until the next boundary (turn-on or turn-off). It never changes the
+    ///     Default, so the next day's daylight is the Default again.
+    ///   * Editing the Default ends any ephemeral value while the schedule is not dimming.
+    ///   * Restore() hands every display the Default back; it is what the app calls on close.
     /// </summary>
     internal sealed class NightLightScheduler
     {
@@ -64,12 +67,10 @@ namespace Monitron.App
             public int Max;
             public bool HasAdopted;
             public int Adopted;             // the reading the display held when we took it over (recorded)
-            public bool HasDayValue;        // EXP17: a slider drag set this display's own day value
-            public int DayValue;
             public bool HasLast;
             public int Last;                // the last value the schedule asked for (dedup)
-            public bool Overridden;
-            public DateTimeOffset OverrideNight;
+            public bool Overridden;         // an ephemeral slider value stands for this display
+            public DateTimeOffset OverrideUntil;   // ...until this boundary
 
             // EXP17: a move in the Day phase has no clock boundary to anchor it, so the ramp carries
             // when it began and from what value (and where it is heading, so an edit re-anchors it).
@@ -78,10 +79,12 @@ namespace Monitron.App
             public DateTimeOffset DayRampStart;
             public int DayRampTo;
 
-            // EXP17: what the night began from, so the fade down starts where the day left off even if
-            // the day's own ramp was still running when the window opened.
+            // A fade must begin where the display actually is: the fade down starts from the day value
+            // (or a slider value), and the fade up from the night level (or a slider value).
             public bool HasNightFrom;
             public int NightFrom;
+            public bool HasDayFrom;
+            public int DayFrom;
         }
 
         private readonly ScheduleSettings _settings;
@@ -92,6 +95,7 @@ namespace Monitron.App
 
         private NightPhase _phase = NightPhase.Day;
         private bool _engaged;              // the schedule has taken the displays over
+        private int _lastDaylight;          // to notice a Default edit (EXP17)
 
         public NightLightScheduler(ScheduleSettings settings, Func<DateTimeOffset> now, TimeSpan fade, TimeSpan step)
         {
@@ -99,6 +103,7 @@ namespace Monitron.App
             _now = now;
             _fade = fade > TimeSpan.Zero ? fade : TimeSpan.Zero;
             _step = step > TimeSpan.Zero ? step : TimeSpan.FromMinutes(1);
+            _lastDaylight = settings.Daylight;
         }
 
         /// <summary>The phase as of the last Advance().</summary>
@@ -133,10 +138,9 @@ namespace Monitron.App
         }
 
         /// <summary>
-        /// A display was detected, with its real value. EXP17: the reading is recorded as what the
-        /// display held when we took it over - it is *not* the day value, which is configured
-        /// (Settings.Daylight) unless the user has set this display's own. This is what stops a display
-        /// met while dimmed from freezing its dim value as the day value.
+        /// A display was detected, with its real value. The reading is recorded as what the display held
+        /// when we took it over - it is *not* the day value, which is the configured Default. This is
+        /// what stops a display met while dimmed from freezing its dim value as the day value.
         /// </summary>
         public void Observe(string id, int min, int max, int current)
         {
@@ -155,26 +159,27 @@ namespace Monitron.App
             }
         }
 
-        /// <summary>The user moved a slider: that value is that display's day value from now on.</summary>
+        /// <summary>
+        /// EXP17: the user moved a slider. The value is *ephemeral* - it stands the schedule down for
+        /// this display only until the next boundary (the coming turn-on or turn-off), and it never
+        /// changes the Default. So the next day's daylight is the Default again, not the slider.
+        /// </summary>
         public void Request(string id, int value)
         {
             Entry e = Get(id);
-            e.Adopted = value;
-            e.HasAdopted = true;
-            e.DayValue = value;
-            e.HasDayValue = true;
-            e.HasDayRamp = false;          // the user's value is the day value now - no ramp needed
             e.Last = value;
             e.HasLast = true;
+            e.HasDayRamp = false;          // the user's value stands; no day ramp is running
+            e.Overridden = true;
 
-            DateTimeOffset now = _now();
             TimeSpan on, off;
             _settings.ResolvedWindow(out on, out off);
-            if (_settings.Enabled && InWindow(on, off, now.TimeOfDay))
+            if (on == off)   // the sunset placeholder / equal hours keep the times but no window
             {
-                e.Overridden = true;
-                e.OverrideNight = NightStart(on, now);
+                on = _settings.TurnOn;
+                off = _settings.TurnOff;
             }
+            e.OverrideUntil = NextBoundary(on, off, _now());
         }
 
         /// <summary>
@@ -190,17 +195,6 @@ namespace Monitron.App
             bool usable = _settings.Enabled && on != off;
             bool inWindow = usable && InWindow(on, off, now.TimeOfDay);
             TimeSpan fade = _settings.GradualFade ? _fade : TimeSpan.Zero;
-
-            // An override belongs to one night: it lapses when the next turn-on arrives.
-            if (usable)
-            {
-                DateTimeOffset night = NightStart(on, now);
-                foreach (KeyValuePair<string, Entry> kv in _entries)
-                {
-                    Entry e = kv.Value;
-                    if (e.Overridden && e.OverrideNight != night) e.Overridden = false;
-                }
-            }
 
             if (!usable) _phase = _settings.Enabled ? NightPhase.Inert : NightPhase.Off;
             else if (inWindow)
@@ -220,15 +214,30 @@ namespace Monitron.App
             bool restoring = _engaged && !owns;   // the ramp is done, or the schedule was switched off
             if (!owns) _engaged = false;
 
+            // EXP17: editing the Default is an instruction to hold it. It ends any ephemeral slider
+            // value while the schedule is not dimming (during the night it only changes the morning's
+            // target - the display stays dimmed).
+            if (_settings.Daylight != _lastDaylight)
+            {
+                _lastDaylight = _settings.Daylight;
+                if (!owns)
+                {
+                    foreach (KeyValuePair<string, Entry> kv in _entries) kv.Value.Overridden = false;
+                }
+            }
+
             var writes = new List<NightWrite>();
             foreach (KeyValuePair<string, Entry> kv in _entries)
             {
                 Entry e = kv.Value;
                 if (!e.HasAdopted) continue;
 
-                // EXP17: while a night owns the displays, remember what it began from, so the fade
-                // down starts where the day left off even if the day's own ramp was still running.
-                if (owns)
+                // The ephemeral slider value stands only until its boundary; then the schedule resumes.
+                if (e.Overridden && now >= e.OverrideUntil) e.Overridden = false;
+
+                // A fade begins from where the display is: the fade down from the day value (or a
+                // slider value), the fade up from the night level (or a slider value).
+                if (_phase == NightPhase.FadingIn)
                 {
                     if (!e.HasNightFrom)
                     {
@@ -237,9 +246,18 @@ namespace Monitron.App
                     }
                 }
                 else e.HasNightFrom = false;
+                if (_phase == NightPhase.FadingOut)
+                {
+                    if (!e.HasDayFrom)
+                    {
+                        e.DayFrom = e.HasLast ? e.Last : NightLevel(e.Min, e.Max, _settings.Strength);
+                        e.HasDayFrom = true;
+                    }
+                }
+                else e.HasDayFrom = false;
 
-                if (!restoring && e.Overridden) continue;      // the user's move ended it for tonight
-                // The morning lands the day value in one step (the clock says the fade is done); every
+                if (!restoring && e.Overridden) continue;      // the user's value stands for now
+                // The morning lands the Default in one step (the clock says the fade is done); every
                 // other non-night phase goes through Level, which ramps to the Default (EXP17).
                 int target = (restoring && _phase == NightPhase.Day)
                     ? DayTarget(e) : Level(e, now, on, off, fade);
@@ -262,7 +280,7 @@ namespace Monitron.App
             return Level(e, _now(), on, off, _settings.GradualFade ? _fade : TimeSpan.Zero);
         }
 
-        /// <summary>Hands every display its day value back - the app calls this when it closes.</summary>
+        /// <summary>Hands every display the Default back - the app calls this when it closes.</summary>
         public IList<NightWrite> Restore()
         {
             var writes = new List<NightWrite>();
@@ -284,7 +302,7 @@ namespace Monitron.App
         /// <summary>The reading the display held when the schedule took it over (recorded, not written).</summary>
         public int Baseline(string id) { return Get(id).Adopted; }
 
-        /// <summary>EXP17: the day value the schedule wants for this display right now.</summary>
+        /// <summary>EXP17: the day value the schedule wants for this display right now (the Default).</summary>
         public int DayValue(string id) { return DayTarget(Get(id)); }
 
         public bool IsOverridden(string id) { return Get(id).Overridden; }
@@ -311,39 +329,30 @@ namespace Monitron.App
                 case NightPhase.Night:
                     return night;
                 case NightPhase.FadingIn:
-                    // EXP17: start the fade down from where the night found the display, not from a
-                    // value computed off the clock - a launch during the day may still be ramping up.
                     return Lerp(e.HasNightFrom ? e.NightFrom : DayTarget(e), night,
                         Fraction(Since(on, now.TimeOfDay), fade));
                 case NightPhase.FadingOut:
-                    return Lerp(night, DayTarget(e), Fraction(Since(off, now.TimeOfDay), fade));
-                case NightPhase.Day:
-                    return DayRamp(e, now, fade);
-                case NightPhase.Off:
-                    // EXP17: with the night light switched off, the Default value governs the day, so
-                    // changing it moves the displays. (Inert - a window with no length - stays silent,
-                    // so a sunset placeholder or equal hours touches nothing, as it always did.)
-                    return DayRamp(e, now, fade);
+                    return Lerp(e.HasDayFrom ? e.DayFrom : night, DayTarget(e),
+                        Fraction(Since(off, now.TimeOfDay), fade));
                 default:
-                    return e.Adopted;
+                    // Day / Off / Inert: the Default governs - the schedule is not dimming anything.
+                    return DayRamp(e, now, fade);
             }
         }
 
         /// <summary>
-        /// EXP17: the value the schedule returns a display to when it is not dimming it. A slider drag
-        /// made this display's own value; otherwise it is the configured daylight, scaled into the
-        /// display's range exactly like the night strength.
+        /// EXP17: the day value - the configured Default, scaled into the display's range exactly like
+        /// the night strength. Nothing else sets it: a slider drag is ephemeral and does not change it.
         /// </summary>
         private int DayTarget(Entry e)
         {
-            if (e.HasDayValue) return e.DayValue;
             return NightLevel(e.Min, e.Max, _settings.Daylight);
         }
 
         /// <summary>
-        /// EXP17: a display that must move in the Day phase. There is no clock boundary to anchor this
-        /// ramp (the app may have just started, or the daylight value may have just been edited), so it
-        /// carries its own start - one step per `step`, and a single step when gradual fade is off.
+        /// EXP17: a display that must move in the day. There is no clock boundary to anchor this ramp
+        /// (the app may have just started, or the Default may have just been edited), so it carries its
+        /// own start - one step per `step`, and a single step when gradual fade is off.
         /// </summary>
         private int DayRamp(Entry e, DateTimeOffset now, TimeSpan fade)
         {
@@ -414,11 +423,24 @@ namespace Monitron.App
             return d;
         }
 
-        /// <summary>The turn-on that started the night cycle `now` belongs to.</summary>
-        public static DateTimeOffset NightStart(TimeSpan on, DateTimeOffset now)
+        /// <summary>
+        /// EXP17: the next boundary an ephemeral slider value runs to - the earlier of the next turn-on
+        /// and the next turn-off. With no window (the sunset placeholder, equal hours) the earlier of
+        /// the kept times is used, so the value still expires within a day.
+        /// </summary>
+        public static DateTimeOffset NextBoundary(TimeSpan on, TimeSpan off, DateTimeOffset now)
         {
-            DateTimeOffset today = new DateTimeOffset(now.Date.Add(on), now.Offset);
-            return now >= today ? today : today.AddDays(-1);
+            DateTimeOffset nextOn = NextOccurrence(on, now);
+            if (on == off) return nextOn;
+            DateTimeOffset nextOff = NextOccurrence(off, now);
+            return nextOn <= nextOff ? nextOn : nextOff;
+        }
+
+        /// <summary>The next time-of-day after `now` (strictly after, so a boundary lands on the next day).</summary>
+        private static DateTimeOffset NextOccurrence(TimeSpan time, DateTimeOffset now)
+        {
+            DateTimeOffset today = new DateTimeOffset(now.Date.Add(time), now.Offset);
+            return now < today ? today : today.AddDays(1);
         }
 
         /// <summary>The strength as a value in the display's own range (0-100 stays 0-100).</summary>

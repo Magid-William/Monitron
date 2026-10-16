@@ -51,11 +51,11 @@ namespace Monitron.App
             AWholeNightCostsBoundedWrites();
             FadeOffIsOneStep();
             LaunchInsideTheWindowStepsAtOnce();
-            OverrideEndsTheNight();
-            OverrideLapsesAtTheNextTurnOn();
-            UserMoveByDayIsNotAnOverride();
+            ADayDragIsEphemeral();
+            ANightDragEndsAtTheMorning();
+            EditingTheDefaultEndsEphemeralValues();
             SwitchingTheFeatureOffReturnsToDefault();
-            SunsetModeIsInert();
+            SunsetModeAppliesTheDefault();
             StrengthChangesTakeEffectAtOnce();
             RangesArePerDisplay();
             IdempotentAndQuietByDay();
@@ -64,7 +64,6 @@ namespace Monitron.App
             TheDayValueIsTheDaylightSetting();
             ADisplayMetDimmedComesBackToDaylight();
             TheNightStartsWhereTheDayIsMidRamp();
-            ADragIsTheDisplaysOwnDayValue();
             EditingTheDaylightReanchorsTheRamp();
             FadeOffJumpsToTheDaylight();
             TheFeatureOffAppliesTheDefault();
@@ -321,71 +320,83 @@ namespace Monitron.App
             Check(r.Scheduler.Phase == NightPhase.Night, "and the phase is already Night");
         }
 
-        private static void OverrideEndsTheNight()
+        private static void ADayDragIsEphemeral()
         {
-            Console.WriteLine("a manual move inside the window ends the schedule for that night");
-            var r = new Rig("17:00", "09:00", 30, 1, 38);
+            Console.WriteLine("EXP17: a daytime slider drag is ephemeral - it never changes the Default");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 70);
+            r.Clock.At(15, 14, 0);
+            r.Scheduler.Advance();
+            Check(r.Scheduler.Target("A") == 70, "14:00: the day holds the Default 70");
+
+            r.Scheduler.Request("A", 50);              // the user drags the slider
+            Check(r.Scheduler.IsOverridden("A"), "the drag stands the schedule down for this display");
+            Check(r.Scheduler.Target("A") == null, "the schedule has no opinion while it stands");
+            Check(r.Scheduler.DayValue("A") == 70, "and the Default is UNCHANGED (still 70)");
+
+            Check(r.Scheduler.Advance().Count == 0, "the schedule does not push the Default back");
+            r.Clock.At(15, 16, 59);
+            Check(r.Scheduler.Advance().Count == 0, "16:59: still standing down");
+
+            r.Clock.At(15, 17, 0);                     // the next boundary (turn-on) takes over
+            Check(r.Scheduler.Advance().Count == 0, "17:00: the freshest boundary resumes the schedule, no jump");
+            Check(!r.Scheduler.IsOverridden("A"), "the ephemeral value is done at the boundary");
+            Check(r.Scheduler.Phase == NightPhase.FadingIn, "and the night begins");
+
+            r.Clock.At(15, 17, 30);
+            Check(r.Scheduler.Target("A") == 38, "17:30: at the night level");
+
+            r.Clock.At(16, 9, 31);
+            List<NightWrite> w = new List<NightWrite>();
+            foreach (NightWrite x in r.Scheduler.Advance()) w.Add(x);
+            Check(w.Count == 1 && w[0].Value == 70, "the morning returns the Default 70, not the slider's 50 (got " + Dump(w) + ")");
+        }
+
+        private static void ANightDragEndsAtTheMorning()
+        {
+            Console.WriteLine("EXP17: a drag during the night is undone at the turn-off, back to the Default");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 70);
             r.Clock.At(15, 23, 0);
             r.Scheduler.Advance();
             Check(r.Scheduler.Target("A") == 38, "23:00: the schedule is holding 38");
 
-            r.Scheduler.Request("A", 80);              // the user drags the slider
-            Check(r.Scheduler.IsOverridden("A"), "the move is recorded as an override");
-            Check(r.Scheduler.Target("A") == null, "the schedule has no opinion any more");
-            Check(r.Scheduler.Baseline("A") == 80, "and the user's value becomes the day value");
+            r.Scheduler.Request("A", 92);              // the user drags the slider
+            Check(r.Scheduler.IsOverridden("A"), "the move stands the schedule down");
+            Check(r.Scheduler.DayValue("A") == 70, "the Default is untouched (70)");
 
             r.Clock.At(15, 23, 30);
             Check(r.Scheduler.Advance().Count == 0, "23:30: it does not put the display back");
             r.Clock.At(16, 1, 0);
-            Check(r.Scheduler.Advance().Count == 0, "01:00: still not fighting the user");
-            Check(r.Scheduler.IsOverridden("A"), "the override survives the rest of the night");
+            Check(r.Scheduler.Advance().Count == 0, "01:00: the user's value stands");
 
-            r.Clock.At(16, 9, 0);
-            Check(r.Scheduler.Advance().Count == 0, "09:00: turn-off writes nothing - the user's 80 stands");
-            Check(r.Scheduler.IsOverridden("A"), "the override lapses only at the NEXT turn-on");
-        }
+            r.Clock.At(16, 9, 0);                      // the morning boundary
+            Check(r.Scheduler.Advance().Count == 0, "09:00: the fade back starts where the display is (92), no jump");
+            Check(!r.Scheduler.IsOverridden("A"), "the ephemeral value is done at the turn-off");
+            Check(r.Scheduler.Phase == NightPhase.FadingOut, "and the morning ramp is running");
 
-        private static void OverrideLapsesAtTheNextTurnOn()
-        {
-            Console.WriteLine("...and the next turn-on re-arms the schedule from the user's value");
-            var r = new Rig("17:00", "09:00", 30, 1, 38);
-            r.Clock.At(15, 23, 0);
-            r.Scheduler.Advance();
-            r.Scheduler.Request("A", 80);
-
-            r.Clock.At(16, 12, 0);                     // the next day, still in the day window
-            Check(r.Scheduler.Advance().Count == 0, "daytime: quiet");
-            Check(r.Scheduler.IsOverridden("A"), "the override has not lapsed yet");
-
-            r.Clock.At(16, 17, 0);
+            r.Clock.At(16, 9, 31);
             List<NightWrite> w = new List<NightWrite>();
             foreach (NightWrite x in r.Scheduler.Advance()) w.Add(x);
-            Check(!r.Scheduler.IsOverridden("A"), "17:00 the next day: the override lapses");
-            Check(r.Scheduler.Phase == NightPhase.FadingIn, "and the ramp starts again");
-            Check(w.Count == 0, "from the user's own value, so the first step is a no-op");
-
-            r.Clock.At(16, 17, 1);
-            w.Clear();
-            foreach (NightWrite x in r.Scheduler.Advance()) w.Add(x);
-            Check(w.Count == 1 && w[0].Value == 79, "one minute later it steps down from 80 (got " + Dump(w) + ")");
+            Check(w.Count == 1 && w[0].Value == 70, "and it lands on the Default 70 (got " + Dump(w) + ")");
         }
 
-        private static void UserMoveByDayIsNotAnOverride()
+        private static void EditingTheDefaultEndsEphemeralValues()
         {
-            Console.WriteLine("a move during the day is just the day value - no override needed");
-            var r = new Rig("17:00", "09:00", 30, 1, 38);
-            r.Clock.At(15, 12, 0);
+            Console.WriteLine("EXP17: editing the Default ends a standing slider value while it is not dimming");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 80);
+            r.Clock.At(15, 14, 0);
             r.Scheduler.Advance();
-            r.Scheduler.Request("A", 85);
-            Check(!r.Scheduler.IsOverridden("A"), "a daytime move is not an override");
-            Check(r.Scheduler.Advance().Count == 0, "and the schedule has nothing to correct");
-            Check(r.Scheduler.Target("A") == 85, "the new day value is used");
+            r.Scheduler.Request("A", 50);              // the user drags
+            Check(r.Scheduler.IsOverridden("A"), "the drag stands the schedule down");
 
-            r.Clock.At(15, 17, 15);
-            r.Scheduler.Advance();
-            Check(r.Scheduler.Target("A") == 61,
-                "17:15: the ramp runs from the new day value (85 -> 38 is 61 at half way, got "
-                + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");
+            r.Settings.TrySetDaylight("90");           // then edits the Default
+            List<NightWrite> w = new List<NightWrite>();
+            foreach (NightWrite x in r.Scheduler.Advance()) w.Add(x);
+            Check(!r.Scheduler.IsOverridden("A"), "editing the Default clears the standing value");
+            Check(r.Scheduler.DayValue("A") == 90, "the Default is 90 now");
+            Check(w.Count == 0, "the ramp begins where the display is, so nothing jumps (got " + Dump(w) + ")");
+
+            List<NightWrite> up = Run(r.Scheduler, r.Clock, TimeSpan.FromMinutes(1), 31);
+            Check(up.Count > 0 && up[up.Count - 1].Value == 90, "and the display ramps to the new Default (got " + Dump(up) + ")");
         }
 
         private static void SwitchingTheFeatureOffReturnsToDefault()
@@ -416,22 +427,30 @@ namespace Monitron.App
             Check(w.Count == 1 && w[0].Value == 38, "switching it back on dims again (got " + Dump(w) + ")");
         }
 
-        private static void SunsetModeIsInert()
+        private static void SunsetModeAppliesTheDefault()
         {
-            Console.WriteLine("sunset-to-sunrise has no location yet, so it does nothing");
-            var r = new Rig("17:00", "09:00", 30, 1, 38);
+            Console.WriteLine("EXP17: the sunset placeholder never dims, but the Default still governs");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 70);
             r.Settings.SetMode(ScheduleMode.SunsetToSunrise);
             r.Clock.At(15, 23, 0);
-            Check(r.Scheduler.Advance().Count == 0, "23:00 in sunset mode: nothing is written");
+            Check(r.Scheduler.Advance().Count == 0, "23:00 in sunset mode: nothing is written (the Default is the reading)");
             Check(r.Scheduler.Phase == NightPhase.Inert, "phase is Inert");
-            Check(r.Scheduler.Target("A") == 70, "the display keeps its day value");
+            Check(r.Scheduler.Target("A") == 70, "the display holds the Default");
             Check(r.Scheduler.Status.IndexOf("not configured", StringComparison.Ordinal) >= 0,
                 "and the status says so (got '" + r.Scheduler.Status + "')");
 
-            r.Settings.SetMode(ScheduleMode.SetHours);
-            SetWindow(r.Settings, "17:00", "17:00");
-            Check(r.Scheduler.Advance().Count == 0, "explicit equal hours are inert too");
-            Check(r.Scheduler.Phase == NightPhase.Inert, "same phase");
+            // A Default that differs from the reading DOES move the display, even though it never dims.
+            var r2 = new Rig("17:00", "09:00", 30, 1, 38, 90);
+            r2.Settings.SetMode(ScheduleMode.SunsetToSunrise);
+            r2.Clock.At(15, 12, 0);
+            Check(r2.Scheduler.Advance().Count == 0, "the ramp starts where the display is");
+            List<NightWrite> up = Run(r2.Scheduler, r2.Clock, TimeSpan.FromMinutes(1), 31);
+            Check(up.Count > 0 && up[up.Count - 1].Value == 90, "and it ramps to the Default 90 (got " + Dump(up) + ")");
+
+            r2.Settings.SetMode(ScheduleMode.SetHours);
+            SetWindow(r2.Settings, "17:00", "17:00");
+            Check(r2.Scheduler.Advance().Count == 0, "explicit equal hours are inert too");
+            Check(r2.Scheduler.Phase == NightPhase.Inert, "same phase");
         }
 
         private static void StrengthChangesTakeEffectAtOnce()
@@ -631,24 +650,6 @@ namespace Monitron.App
                 "one minute later it is dimmer, never brighter (got " + Dump(down) + ")");
         }
 
-        private static void ADragIsTheDisplaysOwnDayValue()
-        {
-            Console.WriteLine("EXP17: a slider drag is that display's own day value");
-            var r = new Rig("17:00", "09:00", 30, 1, 38, 90);
-            r.Clock.At(15, 12, 0);
-            r.Scheduler.Request("A", 60);                // the user drags during the day
-            Check(r.Scheduler.DayValue("A") == 60, "the day value is the user's 60, not the configured 90");
-
-            r.Clock.At(15, 23, 0);
-            r.Scheduler.Advance();
-            Check(r.Scheduler.Target("A") == 38, "held at the night level");
-
-            r.Clock.At(16, 9, 31);
-            List<NightWrite> w = new List<NightWrite>();
-            foreach (NightWrite x in r.Scheduler.Advance()) w.Add(x);
-            Check(w.Count == 1 && w[0].Value == 60, "the morning returns the user's 60 (got " + Dump(w) + ")");
-        }
-
         private static void EditingTheDaylightReanchorsTheRamp()
         {
             Console.WriteLine("EXP17: editing the daylight mid-ramp re-anchors it, with no jump");
@@ -698,13 +699,6 @@ namespace Monitron.App
             Check(NonIncreasing(down), "changing the Default turns the display around, no jump (got " + Dump(down) + ")");
             Check(r.Scheduler.Target("A") == 40, "and it heads for the new Default 40 (got "
                 + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");
-
-            // Inert (a window with no length) still touches nothing, as it always did.
-            var inert = new Rig("17:00", "09:00", 30, 1, 38, 90);
-            inert.Settings.SetMode(ScheduleMode.SunsetToSunrise);
-            inert.Clock.At(15, 12, 0);
-            Check(inert.Scheduler.Advance().Count == 0, "Inert still writes nothing");
-            Check(inert.Scheduler.Target("A") == 70, "and it keeps its own reading");
         }
     }
 }

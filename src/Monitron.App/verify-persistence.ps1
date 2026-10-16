@@ -257,9 +257,10 @@ Write-Host "asked $h3 window(s) to close"
 Write-Host "`n== the surface's gear =="
 $surfaceFile = Join-Path $stateDir 'surface.ini'
 if (Test-Path $surfaceFile) { Remove-Item $surfaceFile -Force }
-# Make the schedule inert without switching it off: turn-on == turn-off touches no monitor, and
-# (unlike --no-schedule) it leaves the feature on, so the gear's body stays drivable.
-$inert = "--on 00:00 --off 00:00 --no-tray --settings-file `"$surfaceFile`""
+# Put the schedule in the inert state (turn-on == turn-off) without switching it off: unlike
+# --no-schedule it leaves the feature on, so the gear's body stays drivable. EXP17: inert now holds
+# the Default, so the displays are scripted (--monitors) - this run must not touch the real monitor.
+$inert = "--on 00:00 --off 00:00 --no-tray --monitors `"DDC:S|Settings surface|50`" --settings-file `"$surfaceFile`""
 $app = OpenApp $inert
 $script:win = $app.Window
 Check ($app.Window.Current.Name -eq 'Monitron') "the surface is up (got '$($app.Window.Current.Name)')"

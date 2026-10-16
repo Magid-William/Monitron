@@ -420,7 +420,9 @@ try {
         Check ($null -ne $ended) "the night ended (status now '$(StatusText $win)')"
         Check (($ended -like '*daylight*') -or ($ended -like '*returning*')) "and the app says so"
         Start-Sleep -Milliseconds 1500
-        Check (((ProbeValues) -join ',') -eq (($probe0 | ForEach-Object { $_.Value }) -join ',')) "every display the probe can read keeps its value - no schedule write over an override"
+        # EXP17: a slider value is ephemeral - it stands until the next boundary, so at turn-off the
+        # schedule resumes. Here the Default is the same value the override set, so nothing visibly moves.
+        Check (((ProbeValues) -join ',') -eq (($probe0 | ForEach-Object { $_.Value }) -join ',')) "every display the probe can read is back at the Default - the ephemeral value ended at turn-off"
         # The panel is not overridden, so turn-off ramps it back up its own staircase: wait for the
         # ramp to finish rather than sampling it at an arbitrary instant mid-fade. EXP17: the value it
         # returns to is the configured daylight, scaled into the panel's own range.

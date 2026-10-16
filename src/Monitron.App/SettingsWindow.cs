@@ -26,7 +26,6 @@ namespace Monitron.App
         private readonly ThemeBrushes _t;
 
         private CheckBox _enabledBox;
-        private CheckBox _fadeBox;
         private RadioButton _sunsetRadio;
         private RadioButton _hoursRadio;
         private TextBox _strengthBox;
@@ -65,7 +64,6 @@ namespace Monitron.App
 
             _body = new StackPanel();
             _body.Children.Add(StrengthRow());
-            _body.Children.Add(FadeRow());
             _body.Children.Add(ModeRow());
             _body.Children.Add(HoursPanel());
             root.Children.Add(_body);
@@ -194,20 +192,6 @@ namespace Monitron.App
             grid.Children.Add(_defaultBox);
             grid.Children.Add(percent);
             return grid;
-        }
-
-        private UIElement FadeRow()
-        {
-            _fadeBox = new CheckBox
-            {
-                Content = "gradual fade",
-                Margin = new Thickness(0, 12, 0, 0),
-                Cursor = Cursors.Hand,
-                ToolTip = "Ease into and out of the scheduled level instead of stepping",
-            };
-            _fadeBox.Checked += delegate { if (!_model.GradualFade) _model.ToggleGradualFade(); Render(); };
-            _fadeBox.Unchecked += delegate { if (_model.GradualFade) _model.ToggleGradualFade(); Render(); };
-            return _fadeBox;
         }
 
         /// <summary>The two timing options: the fixed sunset range, or explicit hours.</summary>
@@ -410,7 +394,6 @@ namespace Monitron.App
                 _enabledBox.IsChecked = _model.Enabled;
                 _strengthBox.Text = _model.Strength.ToString(CultureInfo.InvariantCulture);
                 _defaultBox.Text = _model.Daylight.ToString(CultureInfo.InvariantCulture);
-                _fadeBox.IsChecked = _model.GradualFade;
                 _sunsetRadio.IsChecked = _model.Mode == ScheduleMode.SunsetToSunrise;
                 _hoursRadio.IsChecked = _model.Mode == ScheduleMode.SetHours;
 

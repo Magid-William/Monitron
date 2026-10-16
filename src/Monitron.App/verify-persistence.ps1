@@ -194,17 +194,14 @@ $app = OpenApp (& $argsFor $settingsFile)
 $script:win = $app.Window
 Check ((Title $app.Handle) -eq 'Monitron settings') "window is titled 'Monitron settings' (got '$((Title $app.Handle))')"
 Check (((EditValues) -join ',') -eq '80,38,5,00,9,00') "a missing file shows the built-in defaults (default 80, strength 38, 5:00, 9:00) - got $((EditValues) -join ',')"
-Check ((ToggleState (ByName 'gradual fade')) -eq [System.Windows.Automation.ToggleState]::On) "'gradual fade' is on by default"
 Check (-not (Test-Path $settingsFile)) "and nothing was written just by opening it"
 [void](Shot $app.Handle (Join-Path $ShotDir '01-first-run-defaults.png'))
 
-Write-Host "`n== drive it: Default 64, strength 55, gradual fade off =="
+Write-Host "`n== drive it: Default 64, strength 55 =="
 SetValue (Edits)[0] '64'
 Check ((EditValues)[0] -eq '64') "the Default field reads 64"
 SetValue (Edits)[1] '55'
 Check ((EditValues)[1] -eq '55') "the strength field reads 55"
-Toggle (ByName 'gradual fade')
-Check ((ToggleState (ByName 'gradual fade')) -eq [System.Windows.Automation.ToggleState]::Off) "'gradual fade' is off now"
 Check (Test-Path $settingsFile) "the edit created the settings file"
 [void](Shot $app.Handle (Join-Path $ShotDir '02-edited.png'))
 
@@ -218,7 +215,6 @@ Write-Host $text.TrimEnd()
 Write-Host "-------------------------"
 Check ($text -match '(?m)^strength=55\s*$') "the file has strength=55"
 Check ($text -match '(?m)^daylight=64\s*$') "the file has daylight=64"
-Check ($text -match '(?m)^gradualFade=false\s*$') "the file has gradualFade=false"
 Check ($text -match '(?m)^version=1\s*$') "the file carries version=1"
 Check (-not (Test-Path ($settingsFile + '.tmp'))) "no .tmp was left behind"
 
@@ -231,7 +227,6 @@ $app = OpenApp (& $argsFor $settingsFile)
 $script:win = $app.Window
 Check ((EditValues)[0] -eq '64') "the Default value is 64 again (got $((EditValues)[0]))"
 Check ((EditValues)[1] -eq '55') "strength is 55 again (got $((EditValues)[1]))"
-Check ((ToggleState (ByName 'gradual fade')) -eq [System.Windows.Automation.ToggleState]::Off) "'gradual fade' is still off"
 Check ((ToggleState (ByName 'On')) -eq [System.Windows.Automation.ToggleState]::On) "the schedule is still on"
 [void](Shot $app.Handle (Join-Path $ShotDir '03-restarted.png'))
 $h2 = CloseApp $app
@@ -246,7 +241,6 @@ $app = OpenApp (& $argsFor $settingsFile)
 $script:win = $app.Window
 Check ((EditValues)[0] -eq '80') "an unreadable daylight falls back to the default 80 (got $((EditValues)[0]))"
 Check ((EditValues)[1] -eq '38') "an unreadable strength falls back to the default 38 (got $((EditValues)[1]))"
-Check ((ToggleState (ByName 'gradual fade')) -eq [System.Windows.Automation.ToggleState]::On) "the other fields are at their defaults"
 Check (-not $app.Process.HasExited) "the app started and stayed up on a corrupt file"
 [void](Shot $app.Handle (Join-Path $ShotDir '04-corrupt-defaults.png'))
 $h3 = CloseApp $app

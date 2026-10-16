@@ -35,7 +35,6 @@ namespace Monitron.App
             sb.Append("enabled=").Append(Bool(settings.Enabled)).Append(Environment.NewLine);
             sb.Append("strength=").Append(settings.Strength.ToString(CultureInfo.InvariantCulture)).Append(Environment.NewLine);
             sb.Append("daylight=").Append(settings.Daylight.ToString(CultureInfo.InvariantCulture)).Append(Environment.NewLine);
-            sb.Append("gradualFade=").Append(Bool(settings.GradualFade)).Append(Environment.NewLine);
             sb.Append("mode=").Append(settings.Mode == ScheduleMode.SunsetToSunrise ? "SunsetToSunrise" : "SetHours").Append(Environment.NewLine);
             sb.Append("turnOn=").Append(Clock(settings.TurnOn)).Append(Environment.NewLine);
             sb.Append("turnOff=").Append(Clock(settings.TurnOff)).Append(Environment.NewLine);
@@ -85,12 +84,6 @@ namespace Monitron.App
                     case "daylight":
                         known++;
                         settings.TrySetDaylight(value);   // same rule as strength (EXP17)
-                        break;
-
-                    case "gradualfade":
-                        known++;
-                        bool fade;
-                        if (bool.TryParse(value, out fade) && fade != settings.GradualFade) settings.ToggleGradualFade();
                         break;
 
                     case "mode":

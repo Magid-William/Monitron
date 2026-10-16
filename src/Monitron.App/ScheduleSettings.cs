@@ -30,7 +30,6 @@ namespace Monitron.App
             Enabled = true;
             Strength = 38;                  // the sample value from the sketch
             Daylight = 80;                  // EXP17: the value the night light returns screens to
-            GradualFade = true;
             Mode = ScheduleMode.SetHours;   // the sketch supplies turn-on/off times, so they start live
             TurnOn = new TimeSpan(17, 0, 0);    // 5:00 PM
             TurnOff = new TimeSpan(9, 0, 0);    // 9:00 AM
@@ -45,7 +44,6 @@ namespace Monitron.App
         /// display overrides it for that display.
         /// </summary>
         public int Daylight { get; private set; }
-        public bool GradualFade { get; private set; }
         public ScheduleMode Mode { get; private set; }
         public TimeSpan TurnOn { get; private set; }
         public TimeSpan TurnOff { get; private set; }
@@ -105,12 +103,6 @@ namespace Monitron.App
         }
 
         public void ToggleEnabled() { SetEnabled(!Enabled); }
-
-        public void ToggleGradualFade()
-        {
-            GradualFade = !GradualFade;
-            RaiseChanged();
-        }
 
         public void SetMode(ScheduleMode mode)
         {

@@ -332,8 +332,6 @@ Write-Host "`n== the sketch, by default =="
 $edits = Edits
 Check ($edits.Count -eq 6) "six numeric fields: default, strength, hour+minute for each of the two times (got $($edits.Count))"
 Check (((EditValues) -join ',') -eq '80,38,5,00,9,00') "values are default 80, strength 38, turn on 5:00, turn off 9:00 (got $((EditValues) -join ','))"
-Check ((Name (ByName 'gradual fade')) -eq 'gradual fade') "'gradual fade' checkbox is there"
-Check ((ToggleState 'gradual fade') -eq [System.Windows.Automation.ToggleState]::On) "'gradual fade' starts on"
 Check ((ToggleState 'On') -eq [System.Windows.Automation.ToggleState]::On) "the schedule starts on"
 Check ((Name (ByName 'Sunset to sunrise (12:00 AM - 12:00 AM)')) -ne '') "'Sunset to sunrise (12:00 AM - 12:00 AM)' is offered verbatim"
 Check ((CountNamed 'PM') -eq 1 -and (CountNamed 'AM') -eq 1) "one AM/PM toggle reads 'PM' (turn on) and one reads 'AM' (turn off)"
@@ -349,7 +347,6 @@ $timeEdits = @((Edits) | Select-Object -Skip 2)
 Check (@($timeEdits | Where-Object { Enabled $_ }).Count -eq 0) "all four time fields are disabled under sunset (coupling)"
 Check (Enabled $edits[0]) "the Default field stays live under sunset (it is outside the section)"
 Check (Enabled $edits[1]) "strength stays live under sunset"
-Check (Enabled (ByName 'gradual fade')) "'gradual fade' stays live under sunset"
 [void](ShotGood $h (Join-Path $ShotDir '02-sunset.png'))
 
 Write-Host "`n== option 2: set hours =="
@@ -363,16 +360,16 @@ Write-Host "`n== drive strength =="
 # Driven through the Value pattern, not keystrokes: this works whatever window the desktop has
 # put in front, and it is what any automation or assistive tool would do.
 $strength = $edits[1]
-$fade = ByName 'gradual fade'
+$first = $edits[0]                       # the Default field: used to take focus off a field
 $strengthPattern = [System.Windows.Automation.ValuePattern]$strength.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
 $strengthPattern.SetValue('55')
 Start-Sleep -Milliseconds 300
-$fade.SetFocus()                        # leaving the field canonicalises it
+$first.SetFocus()                        # leaving the field canonicalises it
 Start-Sleep -Milliseconds 400
 Check ((EditValues)[1] -eq '55') "set strength 55 and it stuck (got $((EditValues)[1]))"
 $strengthPattern.SetValue('999')        # out of range on purpose
 Start-Sleep -Milliseconds 300
-$fade.SetFocus()
+$first.SetFocus()
 Start-Sleep -Milliseconds 400
 Check ((EditValues)[1] -eq '55') "999 was refused and strength reverted to 55 (got $((EditValues)[1]))"
 [void](ShotGood $h (Join-Path $ShotDir '03-strength-55.png'))
@@ -404,7 +401,6 @@ Check ((ToggleState 'On') -eq [System.Windows.Automation.ToggleState]::Off) "the
 $body = @()
 $body += @((Edits) | Select-Object -Skip 1)   # the Default field is outside the section
 $body += FindType $win ([System.Windows.Automation.ControlType]::RadioButton)
-$body += @(ByName 'gradual fade')
 $body += Buttons
 $stillLive = @($body | Where-Object { Enabled $_ })
 Check ($stillLive.Count -eq 0) "every control in the section is disabled (still live: $($stillLive.Count) of $($body.Count))"
@@ -414,13 +410,6 @@ Check ((EditValues)[0] -eq '70') "and the Default field (outside the section) st
 Toggle 'On'
 Check ((ToggleState 'On') -eq [System.Windows.Automation.ToggleState]::On) "and back on"
 Check (@((Edits) | Where-Object { Enabled $_ }).Count -eq 6) "everything is live again"
-
-Write-Host "`n== gradual fade =="
-Toggle 'gradual fade'
-Check ((ToggleState 'gradual fade') -eq [System.Windows.Automation.ToggleState]::Off) "'gradual fade' toggles off"
-Check ((EditValues)[1] -eq '55') "nothing else moved with it"
-Toggle 'gradual fade'
-Check ((ToggleState 'gradual fade') -eq [System.Windows.Automation.ToggleState]::On) "and back on"
 
 Write-Host "`n== close =="
 [void](ShotGood $h (Join-Path $ShotDir '05-final.png'))

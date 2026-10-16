@@ -2,20 +2,21 @@
 # EXP10 - relaxed to N displays: the night is witnessed on every row, over DDC/CI and over WMI.
 #
 # The app is launched with a scaled clock (--now/--rate) and a short schedule, so the same machine
-# the headless test drives crosses turn-on, the fade, the night, a manual override and turn-off in
+# the headless test drives crosses turn-on, the night, a manual override and turn-off in
 # seconds of real time. Everything is asserted against an outside witness, so the claim does not rest
 # on the app agreeing with itself: the read-only EXP02 probe for the displays it can read over
 # DDC/CI, and an independent read-only WMI query for an internal panel (which the probe cannot see).
 # The rows are found by the display id the app puts on each row's slider as its UI automation id.
 #
 #   day value          -> every display reads what it read before (nothing is scheduled yet)
-#   fade down          -> the probe follows the staircase down, monotonically, to the night level
-#   manual override    -> the user's value stands on the display moved, the others stay held
-#   turn-off           -> nothing is written over the override, and every display keeps its value
+#   dim                -> the probe sees every readable display arrive at the night level (EXP17: the
+#                         dim is a glide, so its move is too quick for the probe to sample as a staircase)
+#   manual override    -> the user's value glides in on the display moved, the others stay held
+#   turn-off           -> the schedule resumes, and every display glides back to the Default
 #   close              -> clean exit, and every display is back at its own original value
 #
-# The internal panel is witnessed at the night level and at the restore, but its staircase is not
-# sampled: a WMI read is slower than a fade step (see the boundary in experiments/EXP10/README.md).
+# The internal panel is witnessed at the night level and at the restore; its move is not sampled,
+# because a WMI read is slower than a glide step (see the boundary in experiments/EXP10/README.md).
 #
 # Exit code is non-zero if any assertion fails.
 #
@@ -25,7 +26,7 @@
 #
 # EXP08: this runs on a temp settings file and deletes it first. It used to run with no
 # --settings-file at all, which was only safe while no real settings file existed - once the user
-# has one, its persisted "gradual fade" is inherited and the fade phase under test does not happen.
+# has one, its persisted values are inherited and the phase under test does not happen.
 # (Same correction EXP07 made to verify-settings.ps1, and the reason this script started failing
 # without any theme change.)
 param(
@@ -40,8 +41,7 @@ param(
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path $ShotDir)) { [void](New-Item -ItemType Directory -Path $ShotDir) }
 
-# The defaults this scenario is written against (in particular gradual fade ON), and no writes to
-# the user's real file.
+# The defaults this scenario is written against, and no writes to the user's real file.
 $RealSettings = Join-Path $env:APPDATA 'Monitron\settings.ini'
 $realExisted = Test-Path $RealSettings
 $realHash = if ($realExisted) { (Get-FileHash $RealSettings -Algorithm SHA256).Hash } else { '' }
@@ -288,13 +288,14 @@ $descending = $strength -lt $day
 # move of its own and the night is the only thing this run watches.
 $daylight = $day
 
-# A scripted night: start at 16:00, turn on 16:05, fade 2 minutes in 10-second steps, turn off 16:22.
-# At --rate 30 one simulated minute is two real seconds, so the whole night is under a minute.
+# A scripted night: start at 16:00, turn on 16:05, turn off 16:22. EXP17: the dim is a glide at
+# DaySpeed, so at --rate 30 the move is a fraction of a second in real time - the probe sees the
+# arrival, not a staircase.
 $today = (Get-Date).ToString('yyyy-MM-dd')
-$args = "--now `"$today 16:00:00`" --rate $Rate --on 16:05 --off 16:22 --strength $strength --daylight $daylight --fade-seconds 120 --step-seconds 10 --no-tray --settings-file `"$SettingsFile`""
+$args = "--now `"$today 16:00:00`" --rate $Rate --on 16:05 --off 16:22 --strength $strength --daylight $daylight --no-tray --settings-file `"$SettingsFile`""
 Write-Host "`n== launch a scripted night =="
 Write-Host ("  $Exe $args")
-Write-Host ("  strength $strength (from $day), daylight $daylight, fade 120 s in 10 s steps")
+Write-Host ("  strength $strength (from $day), daylight $daylight")
 
 $p = Start-Process -FilePath $Exe -ArgumentList $args -PassThru
 $h = [IntPtr]::Zero
@@ -351,35 +352,19 @@ try {
     if ($rows.Count -eq 0) {
         Write-Host "`n!! cannot drive the schedule checks without a row; stopping here"
     } else {
-        Write-Host "`n== turn-on: the fade down, watched with the probe =="
-        $seen = WaitStatus $win '*fading to*' 40
-        Check ($null -ne $seen) "the app reports the fade starting ('fading to', got '$(StatusText $win)')"
-
-        # The probe cannot read as fast as a step, so the staircase claim is per readable display.
-        $samples = New-Object System.Collections.ArrayList
-        for ($i = 0; $i -lt 6; $i++) {
-            [void]$samples.Add(@(ProbeValues))
-            Start-Sleep -Milliseconds 700
-        }
-        $width = ($samples | ForEach-Object { $_.Count } | Measure-Object -Minimum).Minimum
-        for ($di = 0; $di -lt $width; $di++) {
-            $series = @($samples | ForEach-Object { $_[$di] })
-            Write-Host ("  display $($di + 1) as the probe saw it: " + ($series -join ' -> '))
-            $lo = [Math]::Min($day, $strength)
-            $hi = [Math]::Max($day, $strength)
-            Check (@($series | Where-Object { $_ -lt $lo -or $_ -gt $hi }).Count -eq 0) "every sample of display $($di + 1) lies between the day value and the night level"
-            $rising = $false
-            for ($i = 1; $i -lt $series.Count; $i++) { if (($descending -and $series[$i] -gt $series[$i - 1]) -or (-not $descending -and $series[$i] -lt $series[$i - 1])) { $rising = $true } }
-            Check (-not $rising) "display $($di + 1) moved in one direction only while it faded"
-            Check ((@($series | Select-Object -Unique).Count) -gt 1) "more than one value was seen on display $($di + 1): the fade is a staircase on the real display too"
-        }
-
-        Write-Host "`n== the night itself =="
+        Write-Host "`n== turn-on: the dim, watched with the probe =="
+        # EXP17: the dim glides, so at --rate 30 it is over in a fraction of a real second - there is no
+        # staircase left to sample. Watch the status change and wait for the value to arrive instead.
         $night = WaitStatus $win '*until*' 45
         Check ($null -ne $night) "the app reports the night ('until', got '$(StatusText $win)')"
         Check ($night -like "*$strength% until 4:22 PM*") "it holds $strength% until the turn-off time"
-        Start-Sleep -Milliseconds 1200
+
         $heldProbe = @(ProbeValues)
+        for ($i = 0; $i -lt 40; $i++) {
+            if ((@($heldProbe | Where-Object { $_ -ne $strength }).Count -eq 0)) { break }
+            Start-Sleep -Milliseconds 250
+            $heldProbe = @(ProbeValues)
+        }
         Check ((@($heldProbe | Where-Object { $_ -ne $strength }).Count -eq 0)) "every display the probe can read is at the night level ($strength, probe saw $($heldProbe -join ','))"
         foreach ($r in $rows) {
             $want = NightLevel $r.Min $r.Max $strength
@@ -429,9 +414,9 @@ try {
         # EXP17: a slider value is ephemeral - it stands until the next boundary, so at turn-off the
         # schedule resumes. Here the Default is the same value the override set, so nothing visibly moves.
         Check (((ProbeValues) -join ',') -eq (($probe0 | ForEach-Object { $_.Value }) -join ',')) "every display the probe can read is back at the Default - the ephemeral value ended at turn-off"
-        # The panel is not overridden, so turn-off ramps it back up its own staircase: wait for the
-        # ramp to finish rather than sampling it at an arbitrary instant mid-fade. EXP17: the value it
-        # returns to is the configured daylight, scaled into the panel's own range.
+        # The panel is not overridden, so turn-off glides it back up: wait for the move to finish rather
+        # than sampling it at an arbitrary instant. EXP17: the value it returns to is the configured
+        # daylight, scaled into the panel's own range.
         foreach ($r in $wmiRows) {
             if ($SkipInternal) { continue }
             $want = NightLevel $r.Min $r.Max $daylight

@@ -5,12 +5,12 @@
 **Brightness for every monitor — and a night light that dims them for you.**
 
 Monitron sits in your notification area, next to the clock. It gives each of your screens its own
-brightness slider, and it can dim them all on a schedule — fade down in the evening, hold the low
+brightness slider, and it can dim them all on a schedule — glide down in the evening, hold the low
 level overnight, and put every screen back the way it was in the morning.
 
 <p align="center">
   <img src="docs/images/monitron-window.png" height="240" alt="Monitron's window: a brightness slider and a settings gear for each display">
-  <img src="docs/images/monitron-night-light.png" height="240" alt="The night-light settings: strength, gradual fade, and the hours it runs">
+  <img src="docs/images/monitron-night-light.png" height="240" alt="The night-light settings: the Default brightness, and the schedule's strength and hours">
 </p>
 
 <p align="center">
@@ -24,8 +24,9 @@ level overnight, and put every screen back the way it was in the morning.
 - **A slider for every screen.** Your main monitor bright, your second one dim — each keeps its own
   level. External monitors and laptop panels both work.
 - **A night light that remembers.** Choose a start time, an end time, and how dim to go. Monitron
-  fades down when the night begins and eases every screen back up to your **Default** brightness in the
-  morning — so nothing is left dark when you don't expect it. The sliders are just for the moment:
+  glides down when the night begins and glides every screen back up to your **Default** brightness in
+  the morning — so nothing is left dark when you don't expect it. Every change glides rather than
+  snapping: a slider, a settings edit, the night itself. The sliders are just for the moment:
   Monitron always gives each screen its Default back.
 - **Out of the way.** Close the window and it keeps running from the tray. Open it again from the
   tray icon whenever you like, or switch on *Run on Windows startup*.
@@ -34,7 +35,8 @@ level overnight, and put every screen back the way it was in the morning.
 
 ## Using it
 
-1. **Set a screen** — drag its slider. That is for right now; Monitron returns the screen to its **Default** on the next change.
+1. **Set a screen** — drag its slider, or click where you want it: the knob lands there and the
+   screen glides to it. That is for right now; Monitron returns the screen to its **Default** on the next change.
 2. **Set the night light** — click the gear on a row; pick the **Default** brightness and switch the schedule on with its hours and strength.
 3. **Leave it running** — close the window; the tray icon brings it back, or quits it.
 

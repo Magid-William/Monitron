@@ -55,7 +55,7 @@ namespace Monitron.App
             string text = SettingsCodec.Serialize(d);
             Check(text.Contains("version=1"), "carries version=1");
             Check(text.Contains("enabled=true") && text.Contains("strength=38") && text.Contains("daylight=80")
-                && text.Contains("gradualFade=true") && text.Contains("mode=SetHours")
+                && text.Contains("mode=SetHours")
                 && text.Contains("turnOn=17:00") && text.Contains("turnOff=09:00"),
                 "defaults spelled out as key=value lines");
             Check(SettingsCodec.Clock(new TimeSpan(0, 0, 0)) == "00:00"
@@ -66,7 +66,7 @@ namespace Monitron.App
             var a = new ScheduleSettings();
             var b = new ScheduleSettings();
             int known = SettingsCodec.Parse(SettingsCodec.Serialize(a), b);
-            Check(known == 8, "eight recognized keys (got " + known + ")");
+            Check(known == 7, "seven recognized keys (got " + known + ")");
             Check(Same(a, b), "parsing a serialized default model reproduces it exactly");
 
             Console.WriteLine("round trip: every field moved");
@@ -74,20 +74,19 @@ namespace Monitron.App
             moved.SetEnabled(false);
             moved.TrySetStrength("55");
             moved.TrySetDaylight("65");
-            moved.ToggleGradualFade();
             moved.SetMode(ScheduleMode.SunsetToSunrise);
             moved.TrySetTurnOn(6, 5, false);     // 6:05 AM
             moved.TrySetTurnOff(11, 30, true);   // 11:30 PM
             var restored = new ScheduleSettings();
             SettingsCodec.Parse(SettingsCodec.Serialize(moved), restored);
-            Check(Same(moved, restored), "off, 55, 65 daylight, no fade, sunset, 6:05 AM -> 11:30 PM all survive");
+            Check(Same(moved, restored), "off, 55, 65 daylight, sunset, 6:05 AM -> 11:30 PM all survive");
 
             Console.WriteLine("a corrupt line cannot wipe the rest");
             var c = new ScheduleSettings();
             SettingsCodec.Parse("strength=55\nbanana=ripe\nturnOn=99:99\n; c\n# c\n\n  turnOff = 06:30  ", c);
             Check(c.Strength == 55, "the one good strength line applied");
             Check(c.TurnOffText == "6:30 AM", "a padded turnOff line applied");
-            Check(c.Enabled && c.GradualFade && c.Mode == ScheduleMode.SetHours,
+            Check(c.Enabled && c.Mode == ScheduleMode.SetHours,
                 "the untouched fields kept their defaults");
             Check(c.TurnOnText == "5:00 PM", "an unparsable clock line (99:99) left turn-on alone");
 
@@ -127,7 +126,6 @@ namespace Monitron.App
             Console.WriteLine("save, then load it back");
             var saved = new ScheduleSettings();
             saved.TrySetStrength("55");
-            saved.ToggleGradualFade();
             Check(store.Save(saved), "Save() succeeded");
             Check(File.Exists(path), "the file is there");
             Check(!File.Exists(path + ".tmp"), "no .tmp left behind (the write was atomic)");
@@ -189,22 +187,20 @@ namespace Monitron.App
             s.TrySetDaylight("999");
             Check(fired == 2, "a refused daylight fires nothing");
 
-            s.ToggleGradualFade();
-            Check(fired == 3, "toggling the fade fires");
             s.SetEnabled(false);
-            Check(fired == 4, "turning the feature off fires");
+            Check(fired == 3, "turning the feature off fires");
             s.SetEnabled(false);
-            Check(fired == 4, "a no-op set fires nothing");
+            Check(fired == 3, "a no-op set fires nothing");
             s.SetMode(ScheduleMode.SunsetToSunrise);
-            Check(fired == 5, "changing the mode fires");
+            Check(fired == 4, "changing the mode fires");
             s.SetMode(ScheduleMode.SunsetToSunrise);
-            Check(fired == 5, "the same mode again fires nothing");
+            Check(fired == 4, "the same mode again fires nothing");
             s.TrySetTurnOn(6, 5, false);
-            Check(fired == 6, "a changed turn-on fires");
+            Check(fired == 5, "a changed turn-on fires");
             s.TrySetTurnOn(6, 5, false);
-            Check(fired == 6, "the same turn-on fires nothing");
+            Check(fired == 5, "the same turn-on fires nothing");
             s.TrySetTurnOff(12, 60, true);
-            Check(fired == 6, "a refused clock fires nothing");
+            Check(fired == 5, "a refused clock fires nothing");
         }
 
         private static bool Same(ScheduleSettings x, ScheduleSettings y)
@@ -212,7 +208,6 @@ namespace Monitron.App
             return x.Enabled == y.Enabled
                 && x.Strength == y.Strength
                 && x.Daylight == y.Daylight
-                && x.GradualFade == y.GradualFade
                 && x.Mode == y.Mode
                 && x.TurnOn == y.TurnOn
                 && x.TurnOff == y.TurnOff;

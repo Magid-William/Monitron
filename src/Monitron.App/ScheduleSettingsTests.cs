@@ -25,8 +25,8 @@ namespace Monitron.App
             Console.WriteLine("ScheduleSettings - transitions driven, state asserted");
 
             var s = new ScheduleSettings();
-            Check(s.Enabled && s.Strength == 38 && s.Daylight == 80 && s.GradualFade && s.Mode == ScheduleMode.SetHours,
-                "defaults: on, 38 %, 80 % daylight, gradual fade, Set hours");
+            Check(s.Enabled && s.Strength == 38 && s.Daylight == 80 && s.Mode == ScheduleMode.SetHours,
+                "defaults: on, 38 %, 80 % daylight, Set hours");
             Check(s.TurnOnText == "5:00 PM" && s.TurnOffText == "9:00 AM",
                 "defaults: turn on 5:00 PM, turn off 9:00 AM");
 
@@ -95,13 +95,6 @@ namespace Monitron.App
             Check(ScheduleSettings.FormatTime(t) == "11:59 PM", "23:59 formats as 11:59 PM");
             ScheduleSettings.ToParts(TimeSpan.Zero, out hour12, out minute, out pm);
             Check(hour12 == 12 && minute == 0 && !pm, "00:00 -> 12:00 AM");
-
-            Console.WriteLine("gradual fade");
-            Check(s.GradualFade, "starts on");
-            s.ToggleGradualFade();
-            Check(!s.GradualFade, "off");
-            s.ToggleGradualFade();
-            Check(s.GradualFade, "on again");
 
             Console.WriteLine();
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,

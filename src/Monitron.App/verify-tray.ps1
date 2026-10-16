@@ -464,9 +464,9 @@ if ($null -eq $day) {
     $strength = [Math]::Max(0, $day - 10)
     Note "the AOC reads $day; a scripted night at strength $strength will dim it"
     $today = (Get-Date).ToString('yyyy-MM-dd')
-    # Turn on 30 simulated seconds in (1 real second at rate 30), then fade over 120 simulated
-    # seconds (4 real seconds) - long enough to catch a dimmed reading before we Quit.
-    $night = "--now `"$today 16:04:30`" --rate 30 --on 16:05 --off 16:30 --strength $strength --daylight $day --fade-seconds 120 --step-seconds 10 --tray-menu"
+    # Turn on 30 simulated seconds in (1 real second at rate 30); the dim then glides at 10 points a
+    # simulated second, which is quick in real time at this rate.
+    $night = "--now `"$today 16:04:30`" --rate 30 --on 16:05 --off 16:30 --strength $strength --daylight $day --tray-menu"
     $p = Launch 'a scripted night, then Quit from the menu' $night 40
     $dimmed = WaitFor { $v = ProbeRead; if ($null -ne $v -and $v -lt $day) { $v } else { $null } } 40 500
     Check ($null -ne $dimmed) "the AOC was dimmed mid-fade (probe read $dimmed, day $day)"

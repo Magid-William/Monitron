@@ -32,6 +32,7 @@ namespace Monitron.App
         private DateTimeOffset _now;
         public TestClock(DateTimeOffset start) { _now = start; }
         public DateTimeOffset Now { get { return _now; } }
+        public void Advance(TimeSpan by) { _now = _now.Add(by); }
     }
 
     internal static class DisplayTests
@@ -107,7 +108,7 @@ namespace Monitron.App
             var clock = new TestClock(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
             var writer = new BrightnessWriter(fake, TimeSpan.FromSeconds(1), delegate { return clock.Now; });
             var scheduler = new NightLightScheduler(new ScheduleSettings(), delegate { return clock.Now; },
-                TimeSpan.Zero, TimeSpan.FromMinutes(1), 10.0, 2);
+                10.0, 2);
             var registry = new DisplayRegistry(fake, writer, scheduler);
 
             IList<MonitorInfo> monitors = registry.Seed();
@@ -123,7 +124,7 @@ namespace Monitron.App
             var clock = new TestClock(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
             var writer = new BrightnessWriter(fake, TimeSpan.FromSeconds(1), delegate { return clock.Now; });
             var scheduler = new NightLightScheduler(new ScheduleSettings(), delegate { return clock.Now; },
-                TimeSpan.Zero, TimeSpan.FromMinutes(1), 10.0, 2);
+                10.0, 2);
             var registry = new DisplayRegistry(fake, writer, scheduler);
             registry.Seed();
 
@@ -144,7 +145,7 @@ namespace Monitron.App
             var clock = new TestClock(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
             var writer = new BrightnessWriter(fake, TimeSpan.FromSeconds(1), delegate { return clock.Now; });
             var scheduler = new NightLightScheduler(new ScheduleSettings(), delegate { return clock.Now; },
-                TimeSpan.Zero, TimeSpan.FromMinutes(1), 10.0, 2);
+                10.0, 2);
             var registry = new DisplayRegistry(fake, writer, scheduler);
             registry.Seed();
 
@@ -164,7 +165,7 @@ namespace Monitron.App
             var clock = new TestClock(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
             var writer = new BrightnessWriter(fake, TimeSpan.FromSeconds(1), delegate { return clock.Now; });
             var scheduler = new NightLightScheduler(new ScheduleSettings(), delegate { return clock.Now; },
-                TimeSpan.Zero, TimeSpan.FromMinutes(1), 10.0, 2);
+                10.0, 2);
             var registry = new DisplayRegistry(fake, writer, scheduler);
             registry.Seed();
 
@@ -181,7 +182,7 @@ namespace Monitron.App
             var clock = new TestClock(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
             var writer = new BrightnessWriter(fake, TimeSpan.FromSeconds(1), delegate { return clock.Now; });
             var scheduler = new NightLightScheduler(new ScheduleSettings(), delegate { return clock.Now; },
-                TimeSpan.Zero, TimeSpan.FromMinutes(1), 10.0, 2);
+                10.0, 2);
             var registry = new DisplayRegistry(fake, writer, scheduler);
             registry.Seed();
 
@@ -211,11 +212,13 @@ namespace Monitron.App
             var fake = new FakeDisplays { Set = Set(M("A", 80), M("B", 80)) };
             var writer = new BrightnessWriter(fake, TimeSpan.FromSeconds(1), delegate { return clock.Now; });
             var scheduler = new NightLightScheduler(settings, delegate { return clock.Now; },
-                TimeSpan.Zero, TimeSpan.FromMinutes(1), 10.0, 2);
+                10.0, 2);
             var registry = new DisplayRegistry(fake, writer, scheduler);
             registry.Seed();
 
             int night = settings.Strength;   // 0..100 displays: the night level is the strength itself
+            scheduler.Advance();             // EXP17: the glide anchors at the reading (80)
+            clock.Advance(TimeSpan.FromSeconds(6));   // and 42 points take 4.2 s
             IList<NightWrite> dim = scheduler.Advance();
             Check(dim.Count == 2, "the night dims both displays");
 

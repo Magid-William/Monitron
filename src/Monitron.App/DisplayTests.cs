@@ -107,7 +107,7 @@ namespace Monitron.App
             var clock = new TestClock(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
             var writer = new BrightnessWriter(fake, TimeSpan.FromSeconds(1), delegate { return clock.Now; });
             var scheduler = new NightLightScheduler(new ScheduleSettings(), delegate { return clock.Now; },
-                TimeSpan.Zero, TimeSpan.FromMinutes(1));
+                TimeSpan.Zero, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(1));
             var registry = new DisplayRegistry(fake, writer, scheduler);
 
             IList<MonitorInfo> monitors = registry.Seed();
@@ -123,7 +123,7 @@ namespace Monitron.App
             var clock = new TestClock(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
             var writer = new BrightnessWriter(fake, TimeSpan.FromSeconds(1), delegate { return clock.Now; });
             var scheduler = new NightLightScheduler(new ScheduleSettings(), delegate { return clock.Now; },
-                TimeSpan.Zero, TimeSpan.FromMinutes(1));
+                TimeSpan.Zero, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(1));
             var registry = new DisplayRegistry(fake, writer, scheduler);
             registry.Seed();
 
@@ -144,7 +144,7 @@ namespace Monitron.App
             var clock = new TestClock(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
             var writer = new BrightnessWriter(fake, TimeSpan.FromSeconds(1), delegate { return clock.Now; });
             var scheduler = new NightLightScheduler(new ScheduleSettings(), delegate { return clock.Now; },
-                TimeSpan.Zero, TimeSpan.FromMinutes(1));
+                TimeSpan.Zero, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(1));
             var registry = new DisplayRegistry(fake, writer, scheduler);
             registry.Seed();
 
@@ -164,7 +164,7 @@ namespace Monitron.App
             var clock = new TestClock(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
             var writer = new BrightnessWriter(fake, TimeSpan.FromSeconds(1), delegate { return clock.Now; });
             var scheduler = new NightLightScheduler(new ScheduleSettings(), delegate { return clock.Now; },
-                TimeSpan.Zero, TimeSpan.FromMinutes(1));
+                TimeSpan.Zero, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(1));
             var registry = new DisplayRegistry(fake, writer, scheduler);
             registry.Seed();
 
@@ -181,7 +181,7 @@ namespace Monitron.App
             var clock = new TestClock(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
             var writer = new BrightnessWriter(fake, TimeSpan.FromSeconds(1), delegate { return clock.Now; });
             var scheduler = new NightLightScheduler(new ScheduleSettings(), delegate { return clock.Now; },
-                TimeSpan.Zero, TimeSpan.FromMinutes(1));
+                TimeSpan.Zero, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(1));
             var registry = new DisplayRegistry(fake, writer, scheduler);
             registry.Seed();
 
@@ -211,7 +211,7 @@ namespace Monitron.App
             var fake = new FakeDisplays { Set = Set(M("A", 80), M("B", 80)) };
             var writer = new BrightnessWriter(fake, TimeSpan.FromSeconds(1), delegate { return clock.Now; });
             var scheduler = new NightLightScheduler(settings, delegate { return clock.Now; },
-                TimeSpan.Zero, TimeSpan.FromMinutes(1));
+                TimeSpan.Zero, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(1));
             var registry = new DisplayRegistry(fake, writer, scheduler);
             registry.Seed();
 

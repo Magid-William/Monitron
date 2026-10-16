@@ -389,6 +389,16 @@ namespace Monitron.App
         /// <summary>How coarse the fade's staircase is: one write per step, per display.</summary>
         private static readonly TimeSpan Step = TimeSpan.FromMinutes(1);
 
+        /// <summary>
+        /// EXP17: how long a move to the Default takes - a settings edit, a launch in the day, the night
+        /// light switched off or inert. It is something the user just asked for, so it settles in a
+        /// minute rather than over the night's half-hour fade.
+        /// </summary>
+        private static readonly TimeSpan DayMove = TimeSpan.FromMinutes(1);
+
+        /// <summary>One staircase step of the move to the Default (EXP17): a smooth minute, not a jump.</summary>
+        private static readonly TimeSpan DayMoveStep = TimeSpan.FromSeconds(1);
+
         [STAThread]
         private static void Main(string[] args)
         {
@@ -403,6 +413,8 @@ namespace Monitron.App
             int? daylight = null;        // --daylight N (EXP17: the value the night light returns to)
             TimeSpan? fade = null;       // --fade-seconds N (the whole fade in N seconds)
             TimeSpan? step = null;       // --step-seconds N (one staircase step every N seconds)
+            TimeSpan? dayFade = null;    // --day-fade-seconds N (EXP17: the move to the Default in N seconds)
+            TimeSpan? dayStep = null;    // --day-step-seconds N (EXP17: one step of that move)
             string settingsFile = null;   // --settings-file <path>: where the settings live (verification)
             ThemePreference preference = ThemePreference.Auto; // --theme auto|light|dark
             bool osGiven = false;         // --os-theme light|dark: stand in for the OS reading
@@ -447,6 +459,8 @@ namespace Monitron.App
                 else if (a == "--daylight" && i + 1 < args.Length) daylight = int.Parse(args[++i], CultureInfo.InvariantCulture);
                 else if (a == "--fade-seconds" && i + 1 < args.Length) fade = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
                 else if (a == "--step-seconds" && i + 1 < args.Length) step = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
+                else if (a == "--day-fade-seconds" && i + 1 < args.Length) dayFade = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
+                else if (a == "--day-step-seconds" && i + 1 < args.Length) dayStep = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
                 else if (a == "--settings-file" && i + 1 < args.Length) settingsFile = args[++i];
                 else if (a == "--theme" && i + 1 < args.Length)
                 {
@@ -577,7 +591,8 @@ namespace Monitron.App
 
             var writer = new BrightnessWriter(controller, Settle, clock);
             var scheduler = new NightLightScheduler(settings, clock,
-                fade.HasValue ? fade.Value : Fade, step.HasValue ? step.Value : Step);
+                fade.HasValue ? fade.Value : Fade, step.HasValue ? step.Value : Step,
+                dayFade.HasValue ? dayFade.Value : DayMove, dayStep.HasValue ? dayStep.Value : DayMoveStep);
             var registry = new DisplayRegistry(controller, writer, scheduler);
             IList<MonitorInfo> monitors = registry.Seed();   // adopt every display: a row, a seed, an observe
 

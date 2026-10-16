@@ -35,6 +35,11 @@ namespace Monitron.App
         private static int _passed;
         private static int _failed;
 
+        // EXP17: the app's own move-to-Default timing (Program.cs DayMove/DayMoveStep), so the fixture
+        // drives the ramp the shipped app actually has - a minute, not the night's half hour.
+        private static readonly TimeSpan DayMove = TimeSpan.FromMinutes(1);
+        private static readonly TimeSpan DayMoveStep = TimeSpan.FromSeconds(1);
+
         private static void Check(bool condition, string what)
         {
             if (condition) { _passed++; Console.WriteLine("  ok   " + what); }
@@ -92,7 +97,8 @@ namespace Monitron.App
                 // that are about the setting pass their own.
                 Settings.TrySetDaylight("70");
                 Scheduler = new NightLightScheduler(Settings, delegate { return Clock.Now; },
-                    TimeSpan.FromMinutes(fadeMinutes), TimeSpan.FromMinutes(stepMinutes));
+                    TimeSpan.FromMinutes(fadeMinutes), TimeSpan.FromMinutes(stepMinutes),
+                    DayMove, DayMoveStep);
                 Scheduler.Observe("A", 0, 100, 70);
             }
 
@@ -104,7 +110,8 @@ namespace Monitron.App
                 Settings.TrySetStrength(strength.ToString(CultureInfo.InvariantCulture));
                 Settings.TrySetDaylight(daylight.ToString(CultureInfo.InvariantCulture));
                 Scheduler = new NightLightScheduler(Settings, delegate { return Clock.Now; },
-                    TimeSpan.FromMinutes(fadeMinutes), TimeSpan.FromMinutes(stepMinutes));
+                    TimeSpan.FromMinutes(fadeMinutes), TimeSpan.FromMinutes(stepMinutes),
+                    DayMove, DayMoveStep);
                 Scheduler.Observe("A", 0, 100, 70);
             }
         }
@@ -486,7 +493,7 @@ namespace Monitron.App
             SetWindow(settings, "17:00", "09:00");
             settings.TrySetStrength("38");
             var s = new NightLightScheduler(settings, delegate { return clock.Now; },
-                TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(1));
+                TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(1), DayMove, DayMoveStep);
             s.Observe("A", 0, 100, 70);
             s.Observe("B", 20, 80, 60);
             clock.At(15, 23, 0);
@@ -590,12 +597,13 @@ namespace Monitron.App
             r.Clock.At(15, 12, 0);
             Check(r.Scheduler.Advance().Count == 0,
                 "12:00: the ramp begins at the value the display has now, so nothing jumps");
-            List<NightWrite> up = Run(r.Scheduler, r.Clock, TimeSpan.FromMinutes(1), 31);
+            List<NightWrite> up = Run(r.Scheduler, r.Clock, TimeSpan.FromSeconds(1), 30);
             Check(up.Count > 0 && NonDecreasing(up), "the ramp climbs (got " + Dump(up) + ")");
-            Check(up[0].Value == 71, "the first step is one increment up from 70 (got "
-                + up[0].Value.ToString(CultureInfo.InvariantCulture) + ")");
-            Check(up[up.Count - 1].Value == 90 && r.Scheduler.Target("A") == 90,
-                "and it is held at the daylight 90 (last " + up[up.Count - 1].Value.ToString(CultureInfo.InvariantCulture)
+            Check(r.Scheduler.Target("A") == 80, "half way through the minute it is at 80 (got "
+                + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");
+            List<NightWrite> rest = Run(r.Scheduler, r.Clock, TimeSpan.FromSeconds(1), 31);
+            Check(rest.Count > 0 && rest[rest.Count - 1].Value == 90 && r.Scheduler.Target("A") == 90,
+                "the minute is enough to land on the daylight 90 (last " + rest[rest.Count - 1].Value.ToString(CultureInfo.InvariantCulture)
                 + ", target " + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");
         }
 
@@ -626,14 +634,9 @@ namespace Monitron.App
             Console.WriteLine("EXP17: a day ramp still running at turn-on is not jumped up to the day value");
             var r = new Rig("17:00", "09:00", 30, 1, 38, 90);
 
-            r.Clock.At(15, 16, 50);
+            r.Clock.At(15, 16, 59);
             r.Scheduler.Advance();                       // the ramp begins from the reading (70)
-            List<NightWrite> up = new List<NightWrite>();
-            for (int i = 0; i < 9; i++)                  // 16:51 .. 16:59
-            {
-                r.Clock.Advance(TimeSpan.FromMinutes(1));
-                foreach (NightWrite x in r.Scheduler.Advance()) up.Add(x);
-            }
+            List<NightWrite> up = Run(r.Scheduler, r.Clock, TimeSpan.FromSeconds(1), 30);   // 16:59:01 .. 16:59:30
             Check(up.Count > 0 && StrictlyIncreasing(up), "the day ramp climbs (got " + Dump(up) + ")");
             int beforeNight = r.Scheduler.Target("A").Value;
             Check(beforeNight > 70 && beforeNight < 90,
@@ -656,12 +659,12 @@ namespace Monitron.App
             var r = new Rig("17:00", "09:00", 30, 1, 38, 90);
             r.Clock.At(15, 12, 0);
             r.Scheduler.Advance();                       // the ramp 70 -> 90 begins
-            List<NightWrite> up = Run(r.Scheduler, r.Clock, TimeSpan.FromMinutes(1), 5);   // 12:01 .. 12:05
-            Check(up.Count > 0 && NonDecreasing(up) && up[up.Count - 1].Value == 73,
-                "five minutes in, the display is at 73 (got " + Dump(up) + ")");
+            List<NightWrite> up = Run(r.Scheduler, r.Clock, TimeSpan.FromSeconds(1), 30);   // 12:00:01 .. 12:00:30
+            Check(up.Count > 0 && NonDecreasing(up) && r.Scheduler.Target("A") == 80,
+                "half way in, the display is at 80 (got " + Dump(up) + ")");
 
             r.Settings.TrySetDaylight("60");             // the user lowers the day value
-            List<NightWrite> down = Run(r.Scheduler, r.Clock, TimeSpan.FromMinutes(1), 32); // 12:06 .. 12:37
+            List<NightWrite> down = Run(r.Scheduler, r.Clock, TimeSpan.FromSeconds(1), 61); // 12:00:31 .. 12:01:31
             Check(NonIncreasing(down), "the ramp turns around and never steps up (got " + Dump(down) + ")");
             Check(r.Scheduler.Target("A") == 60, "and its target is the new 60 (got "
                 + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");

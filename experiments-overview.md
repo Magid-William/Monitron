@@ -21,7 +21,7 @@ only the user declares the final status.
 | EXP14 | Live displays: re-detect the display set on a display change | success | EXP14 | 2026-10-16 | 2026-10-16 | [experiments/EXP14/README.md](experiments/EXP14/README.md) |
 | EXP15 | The surface follows the tray: it opens on the notification area's monitor | success | EXP15 | 2026-10-16 | 2026-10-16 | [experiments/EXP15/README.md](experiments/EXP15/README.md) |
 | EXP16 | The download: an unsigned release of the exe, proven by fetching it back | success | EXP16 | 2026-10-16 | 2026-10-16 | [experiments/EXP16/README.md](experiments/EXP16/README.md) |
-| EXP17 | The night light returns to a day value you configure (the Daylight setting) | inProg | EXP17 | 2026-10-16 | - | [experiments/EXP17/README.md](experiments/EXP17/README.md) |
+| EXP17 | The night light returns to a day value you configure (the Daylight setting) | success | EXP17 | 2026-10-16 | 2026-10-16 | [experiments/EXP17/README.md](experiments/EXP17/README.md) |
 
 **EXP01:** status `failed` is the agent's recommendation, pending the user's declaration —
 the hypothesis ("no mainstream tool combines DDC/CI brightness with a user schedule") was

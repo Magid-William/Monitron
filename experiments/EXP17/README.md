@@ -91,62 +91,79 @@ stale value instead of where the display actually is.
       default).
 
 ## Conclusion (findings)
-_Pending._
+**Success** (user-declared). The hypothesis held, through six corrections the user drove:
+
+1. **The Default is the only day value.** `Observe` records a display's reading, but the day value is
+   `Settings.Daylight` scaled into that display's range, so a screen met while dimmed no longer comes back
+   dim, and `Restore()` on close hands the Default back.
+2. **A slider drag is ephemeral.** It glides the display and stands the schedule down for that display
+   only until the next boundary, and it never changes the Default. (The first cut - "a drag becomes that
+   display's day value" - was reversed by the user, and the per-display day value deleted.)
+3. **The Default governs in every non-night state, including the sunset placeholder.** The user's own
+   `mode=SunsetToSunrise` makes the schedule inert; leaving the Default silent there was the real bug
+   behind "changing the Default does nothing".
+4. **A move glides at a constant speed in fixed-size steps** (10 points/s, 2 points per step), not over a
+   fixed duration. The journey: the night fade (30 min) -> a 1-minute ramp -> 20 s -> 5 s -> the fixed
+   *shape*, which is what satisfied both ends (a one-point edit is one write; a 70-point one glides in
+   even steps).
+5. **The slider uses the same glide**, so a click lands the knob and the dimming catches up; the row had
+   to stop copying each in-flight write back onto the knob, and the scheduler grew `Goal` so a Default
+   edit lands the knob at once too instead of animating it.
+6. **One glide law replaced the fade.** The night dims and restores by gliding, and so does a Strength,
+   On or mode edit. The fade, `FadingIn`/`FadingOut`, the `Since`/`Fraction` helpers, the
+   `--fade-seconds`/`--step-seconds` seams and the gradual-fade setting were all deleted.
+
+Evidence (measured, never described):
+- Headless: writer 23, schedule 142, display 32, model 45, persistence 46, theme 34, icon 49, tray 35,
+  position 70 - 0 failed.
+- Live, on the real panel, with the read-only `probe.exe` as the outside witness: a Default edit 90 -> 91
+  landed in one write (~0.3 s) and 91 -> 20 glided in ~7.6 s; a slider set to 20 left the knob at 20 while
+  the panel glided down; a Default edit 90 -> 30 landed the knob on 30 within ~0.5 s while the panel
+  glided; the scripted turn-on dimmed 90 -> 50 by gliding and a Strength change to 20 retargeted it
+  mid-move.
+- E2E: the `verify-*` suites ran green at each earlier step (settings 34, persistence 31, theme 42,
+  control 19, slider 30, schedule 29, tray 55, displays 14, position 57, icon 33). After the last two
+  changes they were updated for the removed setting/seam and for a move the probe can no longer sample as
+  a staircase, and parse-checked - but not run, per the user's standing instruction for this experiment.
 
 ## Learnings
-- The "day value" the night light restored was *read off the panel at adoption* (`Observe`), so any
-  display the app first met while dimmed (a restart mid-window, a re-attach) had its dim value frozen
-  as "daylight". A schedule that "remembers" brightness needs a configured value, not a sample.
-- An ephemeral UI value needs an **explicit expiry**, not a "lapses at the next X" rule that spans a
-  whole cycle: the user wanted "next day's daylight = Default" for a *night* drag (so the lapse is the
-  turn-off), but "the schedule resumes at the next boundary" for a *day* drag (the turn-on). One rule -
-  the earlier of the next turn-on and turn-off (`NextBoundary`) - gives both.
-- The Default must apply in the **inert** state too (the sunset placeholder with no location, equal
-  hours): it is "not dimming", and leaving it silent is exactly the bug the user hit
-  (`mode=SunsetToSunrise` in their settings made every Default edit do nothing).
-- A user-initiated move must not borrow the night's timescale, and it must not be a *fixed duration*
-  either. Reusing the night fade made a settings edit take 30 minutes; a fixed 5-second ramp then made a
-  **one-point** edit wait 5 seconds while a 70-point one jumped 7 points per write. The right shape is a
-  **constant speed in fixed-size steps** (10 points/s, 2 points per step): the duration follows the
-  distance, and smoothness does not. Measured live: 90 -> 91 lands in one write (~0.3 s); 91 -> 20 glides
-  in ~7.6 s in small even steps. The lesson: measure the *shipped default* and poke both ends of the
-  range - one happy path proves nothing.
-- The writer's 250 ms settle is a *slider* debounce; a glide step 200 ms after the last would be
-  coalesced away and the move would jump. So a value the *schedule* glide decides goes through
-  `writer.Apply` (due at once) while a slider drag keeps `writer.Request`. The settle is about input, not
-  output - and the slider's own glide rides the scheduler's steps, not the debounce.
-- The phase stays clock-derived, but the *value* cannot be: every move needs its own per-display anchor
-  (`RampFrom`/`RampStart`/`RampTo`). Re-anchor whenever the wanted value changes; one glide (`GlideAt`)
-  then serves the Default, a slider, the night dimming, the restore, and a strength or hours edit alike.
-- Count the glide's steps in **ticks, not seconds**: `0.2 s * 10 / 2` in doubles lands just under 1.0, so
-  a 200 ms step quietly produced 2- and 4-point jumps in a deterministic test - the very choppiness the
-  glide exists to remove. `elapsed.Ticks / ticksPerStep` is exact.
-- A smoothed slider needs the knob to *lead*. The row used to copy every write's outcome back onto the
-  slider ("cannot show one value while the monitor holds another"), which would make the knob crawl after
-  the click; it now holds the knob at the user's value while a glide is pending and follows the schedule
-  again once it lands.
-- ...and the same is true of the *settings*: after a Default edit the knob crawled along with the dimming,
-  because it only ever saw the in-flight writes. Giving the schedule a `Goal` - the value it is headed to
-  - lets the row land the knob on the new Default at once, which is what "behave like the click on the
-  slider" means. A smoothed move still needs a control that shows the destination, not the journey.
-- One glide law is enough for the whole product. Keeping a separate 30-minute night fade meant two
-  notions of "a move" (a clock-anchored fade and a distance-based glide) plus a switch to choose between
-  them; once every change glides, the fade, the phases that carried it (`FadingIn`/`FadingOut`), the
-  `Since`/`Fraction` helpers and the gradual-fade setting all delete, and a settings edit mid-night is
-  just another retarget. The user's words: "no long fade at all".
-- `verify-position.ps1` and `verify-icon.ps1` put the pipe at the start of a continuation line
-  (`... | Where-Object`), which **Windows PowerShell 5.1 rejects** ("An empty pipe element is not
-  allowed"). Run those two with pwsh: `& .\verify-position.ps1`. The `*-test.ps1` suites run under
-  either.
-- `verify-settings.ps1` / `verify-persistence.ps1` read the numeric fields in on-screen order (the
-  Default field, then strength, then the two clock rows): **adding a settings row shifts the indexes
-  and the expected value list** - the order went from `38,5,00,9,00` to `80,38,5,00,9,00`, and a field
-  *outside* the section must be excluded from "the On switch gates the body" check.
-- A verifier that launches the schedule must pass `--daylight` (equal to the display's reading), or the
-  new Day-phase ramp moves the displays before the scenario starts; and any run that is *inert* but not
-  `--no-schedule` now holds the Default, so it needs `--monitors` (scripted displays) to stay off the
-  user's real monitor - `verify-persistence.ps1` does.
-- Once "off" also writes (the Default governs), `--no-schedule` has to *skip the scheduler*, not rely
-  on it being quiet - and the skip must gate only the scheduler call, not `writer.Advance()`: gating
-  both left a slider drag un-flushed and `verify-control` read the display unchanged. `Apply` takes the
-  flag now and always advances the writer.
+- A schedule that "remembers" brightness needs a **configured** value, not a sample. The day value was
+  the reading taken at adoption (`Observe`), so a display met while dimmed froze its dim value as
+  "daylight"; keep the reading only for what to hand back on exit.
+- A value that governs a state must apply in **every** state that is not the one it is about. Leaving the
+  Default silent in the inert/sunset state was the whole bug the user hit (`mode=SunsetToSunrise`).
+- An ephemeral UI value needs an **explicit expiry**. One rule - the earlier of the next turn-on and
+  turn-off (`NextBoundary`) - gave both behaviours the user wanted: a night drag undone by the morning,
+  and a day drag that still lets the evening dim happen.
+- A user-initiated move must not borrow another timescale, **and must not be a fixed duration**. A
+  constant **speed** in **fixed-size steps** is the shape that satisfies both ends of the range: a
+  one-point edit is one write (90 -> 91 in ~0.3 s) and a 70-point one glides (91 -> 20 in ~7.6 s). This
+  took four iterations (30 min -> 1 min -> 20 s -> 5 s -> the shape); measure the *shipped default* at both
+  ends of the range, because one happy path proves nothing.
+- One glide law for the whole product beats two. A separate night fade meant two notions of "a move" (a
+  clock-anchored fade, a distance-based glide) plus a switch to choose between them; folding everything
+  into the glide deleted the fade, its phases, `Since`/`Fraction`, the fade seams and the gradual-fade
+  setting, and turned a settings edit mid-night into a plain retarget.
+- The writer's 250 ms settle is a *slider* debounce. A paced glide step would be coalesced away, so
+  scheduler values go through `writer.Apply` (due at once) and only slider drags use `writer.Request`.
+- The clock can derive the **phase** but not the **value**. Every move needs its own per-display anchor
+  (`RampFrom`/`RampStart`/`RampTo`) and must re-anchor when the wanted value changes, or it jumps to the
+  old target first. One `GlideAt` then serves the Default, a slider, the night dim, the restore and an
+  edit alike.
+- Count glide steps in **ticks, not seconds**: `0.2 s * 10 / 2` in doubles lands just under 1.0, so a
+  200 ms step quietly produced 2- and 4-point jumps - the very choppiness the glide exists to remove.
+  `elapsed.Ticks / ticksPerStep` is exact.
+- A smoothed control must show the **destination**, not the journey. The row had to stop copying each
+  in-flight write onto its slider, and the scheduler needed a `Goal` so a Default edit lands the knob at
+  once rather than animating it.
+- Commands that worked: `powershell -File .\schedule-test.ps1` (headless; every `*-test.ps1` runs under
+  either PowerShell), and `& .\probe.exe` for an outside read of the real panel.
+- `verify-position.ps1` / `verify-icon.ps1` put the pipe at the start of a continuation line, which
+  **Windows PowerShell 5.1 rejects** ("An empty pipe element is not allowed") - run them with pwsh:
+  `& .\verify-position.ps1`.
+- `verify-settings.ps1` / `verify-persistence.ps1` read the numeric fields in on-screen order, so **a new
+  settings row shifts the indexes and the expected list** (`38,5,00,9,00` -> `80,38,5,00,9,00`), and a
+  field *outside* the section must be excluded from "the On switch gates the body".
+- A verifier that holds the Default but must not touch a real monitor needs `--monitors` (scripted
+  displays); and once "off" also writes, `--no-schedule` must *skip the scheduler call* while still
+  advancing the writer, or a slider drag is left un-flushed.

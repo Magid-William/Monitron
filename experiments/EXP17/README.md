@@ -30,21 +30,23 @@ display actually is.
     section's On switch, so it is always editable (its own `TextBox` seam for the verifier).
   - `NightLightScheduler`: `Observe` records the reading but never makes it the day value; the day
     value is the Default scaled into `[Min, Max]`, and nothing else sets it. `Request` (a slider drag)
-    is an **ephemeral** stand-down: `Last = value` plus an expiry at the next boundary
-    (`NextBoundary` = the earlier of the next turn-on and turn-off; the kept times when there is no
-    window). A changed Default ends the stand-down while not dimming, so "editing the Default moves the
-    screens" holds.
+    is an **ephemeral** stand-down with an expiry at the next boundary (`NextBoundary` = the earlier of
+    the next turn-on and turn-off; the kept times when there is no window). A changed Default ends the
+    stand-down while not dimming, so "editing the Default moves the screens" holds.
   - The Default governs in **Day, Off and Inert** (so switching the night light off, the sunset
     placeholder, and changing the Default all move the displays). Only the night phases dim.
   - A fade begins where the display is: `NightFrom` captured at turn-on, `DayFrom` at turn-off - so a
     slider value does not jump the fade back to a level the display is not at.
-  - A move to the Default runs at a **constant speed in fixed-size steps** - `daySpeed` (10 points/s) and
+  - Every move to a value runs at a **constant speed in fixed-size steps** - `daySpeed` (10 points/s) and
     `dayGrain` (2 points) - not the night's 30-minute fade: the duration follows the distance, so a
-    one-point edit is a single write and a long move glides, and every step is the same size, so
-    smoothness does not depend on the distance. Both come from `Program.cs` (`DaySpeed`/`DayGrain`), with
-    `--day-speed` / `--day-grain` for a verifier. A ramp step goes through `writer.Apply` (due at once),
-    because steps are 200 ms apart and the slider's 250 ms settle would swallow them. The night fade is
-    unchanged.
+    one-point move is a single write and a long one glides, and every step is the same size, so
+    smoothness does not depend on the distance. `Program.cs` carries `DaySpeed`/`DayGrain`, with
+    `--day-speed` / `--day-grain` for a verifier. The night fade is unchanged.
+  - The **slider** uses that same glide: the knob jumps to the click (`IsMoveToPointEnabled`, EXP13) while
+    the display catches up, and the row keeps the knob at the user's value (not the in-flight one) until
+    it lands. `Request` no longer applies the value, it starts the glide; the steps go through
+    `writer.Apply` (due at once) because they are 200 ms apart and the slider's 250 ms settle would
+    swallow them. Under `--no-schedule` there is no scheduler to glide it, so the row writes directly.
   - `Restore()` hands back the Default, not the reading it took at adoption.
   - `Program.cs` gains one seam (`--daylight N`) **and** a correction: `--no-schedule` must now mean the
     schedule never writes (an off schedule writes the Default), so `Apply` asks the scheduler only when
@@ -102,12 +104,21 @@ _Pending._
   distance, and smoothness does not. Measured live: 90 -> 91 lands in one write (~0.3 s); 91 -> 20 glides
   in ~7.6 s in small even steps. The lesson: measure the *shipped default* and poke both ends of the
   range - one happy path proves nothing.
-- The writer's 250 ms settle is a *slider* debounce; a ramp step 200 ms after the last would be coalesced
-  away and the move would jump. So scheduler values go through `writer.Apply` (due at once) while slider
-  drags keep `writer.Request`. The settle is about input, not output.
-- The phase stays clock-derived, but a move with **no boundary** (a launch or a Default edit in the
-  day) cannot be: it needs its own per-display ramp anchor (`DayRampStart`/`DayRampFrom`/`DayRampTo`).
-  Re-anchor it when the target changes; the same staircase code (`Fraction`, one write per step) applies.
+- The writer's 250 ms settle is a *slider* debounce; a glide step 200 ms after the last would be
+  coalesced away and the move would jump. So a value the *schedule* glide decides goes through
+  `writer.Apply` (due at once) while a slider drag keeps `writer.Request`. The settle is about input, not
+  output - and the slider's own glide rides the scheduler's steps, not the debounce.
+- The phase stays clock-derived, but a move with **no boundary** (a launch, a Default edit, or a slider
+  the user just moved) cannot be: it needs its own per-display ramp anchor (`DayRampStart`/`DayRampFrom`/
+  `DayRampTo`). Re-anchor it when the target changes; one glide (`GlideAt`) serves both the Default move
+  and the slider.
+- Count the glide's steps in **ticks, not seconds**: `0.2 s * 10 / 2` in doubles lands just under 1.0, so
+  a 200 ms step quietly produced 2- and 4-point jumps in a deterministic test - the very choppiness the
+  glide exists to remove. `elapsed.Ticks / ticksPerStep` is exact.
+- A smoothed slider needs the knob to *lead*. The row used to copy every write's outcome back onto the
+  slider ("cannot show one value while the monitor holds another"), which would make the knob crawl after
+  the click; it now holds the knob at the user's value while a glide is pending and follows the schedule
+  again once it lands.
 - Both fades must start from where the display actually is - `NightFrom` at turn-on, `DayFrom` at
   turn-off - or a slider value in place makes the fade jump first (the fade-up used to lerp from the
   night level and would snap a user's 92 down to 38 before ramping to 70).

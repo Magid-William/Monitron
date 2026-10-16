@@ -395,8 +395,14 @@ try {
 
         Write-Host "`n== a manual move ends the schedule for the night, on that display only =="
         SetSlider $driveRow.Slider $driveRow.Value
-        Start-Sleep -Milliseconds 2500
+        # EXP17: the value glides in at the same speed a Default move uses, so wait for it to arrive
+        # rather than sampling mid-glide.
         $afterMove = @(ProbeValues)
+        for ($i = 0; $i -lt 40; $i++) {
+            if ((@($afterMove | Where-Object { $_ -eq $driveRow.Value }).Count) -ge 1) { break }
+            Start-Sleep -Milliseconds 250
+            $afterMove = @(ProbeValues)
+        }
         Check ((@($afterMove | Where-Object { $_ -eq $driveRow.Value }).Count) -ge 1) "the user's own $($driveRow.Value) reached the display the slider drives (probe saw $($afterMove -join ','))"
         Check ((@($afterMove | Where-Object { $_ -eq $strength }).Count) -eq ($probe0.Count - 1)) "the other externally driven display(s) are still held at $strength - the override is per display"
         Check ((StatusText $win) -like '*until*') "the night is still on, but the schedule is not fighting the user"

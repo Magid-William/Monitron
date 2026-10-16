@@ -73,6 +73,8 @@ namespace Monitron.App
             public int Last;                // the last value the schedule asked for (dedup)
             public bool Overridden;         // an ephemeral slider value stands for this display
             public DateTimeOffset OverrideUntil;   // ...until this boundary
+            public bool HasManual;          // EXP17: a slider value is still gliding in
+            public int Manual;              // ...the value it is gliding to
 
             // EXP17: a move in the Day phase has no clock boundary to anchor it, so the ramp carries
             // when it began and from what value (and where it is heading, so an edit re-anchors it).
@@ -169,15 +171,16 @@ namespace Monitron.App
         /// <summary>
         /// EXP17: the user moved a slider. The value is *ephemeral* - it stands the schedule down for
         /// this display only until the next boundary (the coming turn-on or turn-off), and it never
-        /// changes the Default. So the next day's daylight is the Default again, not the slider.
+        /// changes the Default. The display *glides* to it at the same constant speed a Default move
+        /// uses, so the knob can jump to the click while the dimming catches up.
         /// </summary>
         public void Request(string id, int value)
         {
             Entry e = Get(id);
-            e.Last = value;
-            e.HasLast = true;
-            e.HasDayRamp = false;          // the user's value stands; no day ramp is running
             e.Overridden = true;
+            e.HasManual = true;            // on its way, not applied yet
+            e.Manual = value;
+            e.HasDayRamp = false;          // the glide re-anchors from where the display is now
 
             TimeSpan on, off;
             _settings.ResolvedWindow(out on, out off);
@@ -229,7 +232,11 @@ namespace Monitron.App
                 _lastDaylight = _settings.Daylight;
                 if (!owns)
                 {
-                    foreach (KeyValuePair<string, Entry> kv in _entries) kv.Value.Overridden = false;
+                    foreach (KeyValuePair<string, Entry> kv in _entries)
+                    {
+                        kv.Value.Overridden = false;
+                        kv.Value.HasManual = false;
+                    }
                 }
             }
 
@@ -240,7 +247,11 @@ namespace Monitron.App
                 if (!e.HasAdopted) continue;
 
                 // The ephemeral slider value stands only until its boundary; then the schedule resumes.
-                if (e.Overridden && now >= e.OverrideUntil) e.Overridden = false;
+                if (e.Overridden && now >= e.OverrideUntil)
+                {
+                    e.Overridden = false;
+                    e.HasManual = false;
+                }
 
                 // A fade begins from where the display is: the fade down from the day value (or a
                 // slider value), the fade up from the night level (or a slider value).
@@ -263,7 +274,33 @@ namespace Monitron.App
                 }
                 else e.HasDayFrom = false;
 
-                if (!restoring && e.Overridden) continue;      // the user's value stands for now
+                if (e.Overridden)
+                {
+                    if (restoring)
+                    {
+                        // The schedule has taken this display back (the morning lands the Default in one
+                        // step); whatever the slider asked for is done.
+                        e.Overridden = false;
+                        e.HasManual = false;
+                    }
+                    else
+                    {
+                        // EXP17: the slider value glides in at the same speed a Default move uses, so the
+                        // knob can be where the user put it while the dimming catches up.
+                        if (e.HasManual)
+                        {
+                            int reached = ManualStep(e, now);
+                            if (!e.HasLast || e.Last != reached)
+                            {
+                                e.Last = reached;
+                                e.HasLast = true;
+                                writes.Add(new NightWrite(kv.Key, reached));
+                            }
+                            if (reached == e.Manual) e.HasManual = false;   // arrived; it still stands down
+                        }
+                        continue;
+                    }
+                }
                 // The morning lands the Default in one step (the clock says the fade is done); every
                 // other non-night phase goes through Level, which ramps to the Default (EXP17).
                 int target = (restoring && _phase == NightPhase.Day)
@@ -382,14 +419,46 @@ namespace Monitron.App
                 e.DayRampTo = to;
             }
 
-            int delta = Math.Abs(to - e.DayRampFrom);
-            int dir = to >= e.DayRampFrom ? 1 : -1;
-            double seconds = (now - e.DayRampStart).TotalSeconds;
-            int steps = (int)Math.Floor(seconds * _daySpeed / _dayGrain);
+            return GlideAt(e.DayRampFrom, to, now - e.DayRampStart, _daySpeed, _dayGrain);
+        }
+
+        /// <summary>
+        /// EXP17: the display's own value glide - the same constant-speed, fixed-grain move the Default
+        /// uses - for a slider the user just moved. It re-anchors on every move, so a drag keeps chasing
+        /// from wherever the display is.
+        /// </summary>
+        private int ManualStep(Entry e, DateTimeOffset now)
+        {
+            if (!e.HasDayRamp || e.DayRampTo != e.Manual)
+            {
+                e.HasDayRamp = true;
+                e.DayRampFrom = e.HasLast ? e.Last : e.Manual;
+                e.DayRampStart = now;
+                e.DayRampTo = e.Manual;
+            }
+            return GlideAt(e.DayRampFrom, e.Manual, now - e.DayRampStart, _daySpeed, _dayGrain);
+        }
+
+        /// <summary>
+        /// EXP17: where a move from `from` to `to` has got to after `elapsed`, at `speed` points per
+        /// second in `grain`-sized steps. The duration follows the distance - a one-point move is a
+        /// single step - while the step size does not, so smoothness never depends on how far the
+        /// display has to travel.
+        /// </summary>
+        private static int GlideAt(int from, int to, TimeSpan elapsed, double speed, int grain)
+        {
+            if (from == to || speed <= 0 || grain <= 0) return to;
+            int delta = Math.Abs(to - from);
+            int dir = to >= from ? 1 : -1;
+            // Count the steps in ticks, not seconds: 0.2 s * 10 / 2 in doubles lands just under 1.0, and
+            // an uneven staircase is exactly the choppiness this is here to remove.
+            double ticksPerStep = TimeSpan.TicksPerSecond * (double)grain / speed;
+            if (ticksPerStep < 1.0) ticksPerStep = 1.0;
+            long steps = (long)(elapsed.Ticks / ticksPerStep);
             if (steps < 0) steps = 0;
-            long moved = (long)steps * _dayGrain;
+            long moved = steps * grain;
             if (moved >= delta) return to;
-            return e.DayRampFrom + dir * (int)moved;
+            return from + dir * (int)moved;
         }
 
         /// <summary>

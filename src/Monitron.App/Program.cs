@@ -82,6 +82,7 @@ namespace Monitron.App
         private readonly NightLightScheduler _scheduler;
         private readonly ThemeBrushes _t;
         private readonly Action _onSettings;
+        private readonly bool _scheduled;   // EXP17: --no-schedule writes a slider straight, with no glide
 
         private readonly StackPanel _rows = new StackPanel();       // one card per display, in detection order
         private readonly TextBlock _empty;                          // shown when there is no row at all
@@ -99,12 +100,13 @@ namespace Monitron.App
         public IList<string> Ids { get { return _order; } }
 
         private SurfaceView(IList<MonitorInfo> monitors, BrightnessWriter writer, NightLightScheduler scheduler,
-            ThemeState theme, double width, Action onSettings)
+            ThemeState theme, double width, Action onSettings, bool scheduled)
         {
             _writer = writer;
             _scheduler = scheduler;
             _t = theme.Brushes;
             _onSettings = onSettings;
+            _scheduled = scheduled;
 
             var root = new StackPanel { Margin = new Thickness(18, 16, 18, 16) };
             root.Children.Add(Label("Monitron", 16, _t.Ink, FontWeights.SemiBold, new Thickness(0, 0, 0, 2)));
@@ -151,16 +153,16 @@ namespace Monitron.App
         }
 
         public static SurfaceView Build(IList<MonitorInfo> monitors, BrightnessWriter writer, NightLightScheduler scheduler,
-            ThemeState theme, double width, Action onSettings)
+            ThemeState theme, double width, Action onSettings, bool scheduled)
         {
-            return new SurfaceView(monitors, writer, scheduler, theme, width, onSettings);
+            return new SurfaceView(monitors, writer, scheduler, theme, width, onSettings, scheduled);
         }
 
         /// <summary>A display just appeared: give it a row (EXP14).</summary>
         public void Add(MonitorInfo monitor)
         {
             if (_cards.ContainsKey(monitor.Id)) return;
-            RowWidget row = Row(monitor, _writer, _scheduler, _t, _onSettings);
+            RowWidget row = Row(monitor, _writer, _scheduler, _t, _onSettings, _scheduled);
             _rows.Children.Add(row.Card);
             _cards[monitor.Id] = row.Card;
             _detach[monitor.Id] = row.Detach;
@@ -202,7 +204,7 @@ namespace Monitron.App
 
         /// <summary>One monitor: name + live value above a slider, gear button at the right.</summary>
         private static RowWidget Row(MonitorInfo monitor, BrightnessWriter writer, NightLightScheduler scheduler,
-            ThemeBrushes t, Action onSettings)
+            ThemeBrushes t, Action onSettings, bool scheduled)
         {
             var value = new TextBlock
             {
@@ -274,15 +276,29 @@ namespace Monitron.App
             // assigning Value raises ValueChanged, and that must not be mistaken for a drag - the
             // schedule would read its own move as the user taking over and stand down for the night.
             bool syncing = false;
+            // EXP17: the value the user last asked for, and whether a glide is still bringing the
+            // display to it. While it is, the knob stays where the user put it - the dimming catches up.
+            int asked = monitor.Current;
+            bool gliding = false;
 
-            // The label shows what you asked for at once; the debounce decides when it lands.
+            // The label shows what you asked for at once; the display follows at the same constant speed
+            // a Default move uses - a click lands the knob, and the dimming catches up to it.
             slider.ValueChanged += delegate(object sender, RoutedPropertyChangedEventArgs<double> e)
             {
                 int v = (int)Math.Round(e.NewValue);
                 value.Text = v.ToString(CultureInfo.InvariantCulture);
                 if (syncing) return;
-                scheduler.Request(monitor.Id, v);   // the schedule learns this was the user, and stands back
-                writer.Request(monitor.Id, v);
+                asked = v;
+                if (scheduled)
+                {
+                    gliding = writer.Applied(monitor.Id) != v;   // there is a glide to run
+                    scheduler.Request(monitor.Id, v);            // the schedule learns this was the user, and stands back
+                }
+                else
+                {
+                    gliding = false;
+                    writer.Request(monitor.Id, v);               // no scheduler to glide it: write it straight
+                }
             };
 
             // A write's outcome comes back from the writer, not from the slider - and the slider
@@ -291,6 +307,8 @@ namespace Monitron.App
             Action<string, int> onWritten = delegate(string id, int applied)
             {
                 if (id != monitor.Id) return;
+                if (gliding && applied != asked) return;   // on its way: leave the knob where the user put it
+                gliding = false;
                 syncing = true;
                 try { if ((int)Math.Round(slider.Value) != applied) slider.Value = applied; }
                 finally { syncing = false; }
@@ -600,7 +618,7 @@ namespace Monitron.App
             IList<MonitorInfo> monitors = registry.Seed();   // adopt every display: a row, a seed, an observe
 
             var host = new SettingsHost(settings, theme);
-            SurfaceView view = SurfaceView.Build(monitors, writer, scheduler, theme, width, delegate { host.Show(); });
+            SurfaceView view = SurfaceView.Build(monitors, writer, scheduler, theme, width, delegate { host.Show(); }, schedule);
             Window window = view.Shell;
 
             // The app's own icon (EXP12): the generated Monitron.ico, embedded in the exe, on the

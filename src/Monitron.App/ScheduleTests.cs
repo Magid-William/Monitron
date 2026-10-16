@@ -329,7 +329,7 @@ namespace Monitron.App
 
         private static void ADayDragIsEphemeral()
         {
-            Console.WriteLine("EXP17: a daytime slider drag is ephemeral - it never changes the Default");
+            Console.WriteLine("EXP17: a slider drag glides to the value, is ephemeral, and never changes the Default");
             var r = new Rig("17:00", "09:00", 30, 1, 38, 70);
             r.Clock.At(15, 14, 0);
             r.Scheduler.Advance();
@@ -339,10 +339,16 @@ namespace Monitron.App
             Check(r.Scheduler.IsOverridden("A"), "the drag stands the schedule down for this display");
             Check(r.Scheduler.Target("A") == null, "the schedule has no opinion while it stands");
             Check(r.Scheduler.DayValue("A") == 70, "and the Default is UNCHANGED (still 70)");
+            Check(r.Scheduler.Advance().Count == 0, "the glide starts where the display is (70), so nothing jumps");
 
-            Check(r.Scheduler.Advance().Count == 0, "the schedule does not push the Default back");
+            TimeSpan step = TimeSpan.FromSeconds(DayGrain / DaySpeed);       // one step every 200 ms
+            List<NightWrite> glide = Run(r.Scheduler, r.Clock, step, 10);    // 2 s for 20 points
+            Check(glide.Count == 10 && glide[glide.Count - 1].Value == 50,
+                "the dimming glides to the value in even steps (got " + Dump(glide) + ")");
+
             r.Clock.At(15, 16, 59);
-            Check(r.Scheduler.Advance().Count == 0, "16:59: still standing down");
+            Check(r.Scheduler.Advance().Count == 0, "16:59: it does not put the Default back");
+            Check(r.Scheduler.IsOverridden("A"), "and the ephemeral value still stands");
 
             r.Clock.At(15, 17, 0);                     // the next boundary (turn-on) takes over
             Check(r.Scheduler.Advance().Count == 0, "17:00: the freshest boundary resumes the schedule, no jump");
@@ -360,7 +366,7 @@ namespace Monitron.App
 
         private static void ANightDragEndsAtTheMorning()
         {
-            Console.WriteLine("EXP17: a drag during the night is undone at the turn-off, back to the Default");
+            Console.WriteLine("EXP17: a drag during the night glides up, and is undone at the turn-off");
             var r = new Rig("17:00", "09:00", 30, 1, 38, 70);
             r.Clock.At(15, 23, 0);
             r.Scheduler.Advance();
@@ -369,9 +375,13 @@ namespace Monitron.App
             r.Scheduler.Request("A", 92);              // the user drags the slider
             Check(r.Scheduler.IsOverridden("A"), "the move stands the schedule down");
             Check(r.Scheduler.DayValue("A") == 70, "the Default is untouched (70)");
+            Check(r.Scheduler.Advance().Count == 0, "the glide starts where the display is (38), so nothing jumps");
 
-            r.Clock.At(15, 23, 30);
-            Check(r.Scheduler.Advance().Count == 0, "23:30: it does not put the display back");
+            TimeSpan step = TimeSpan.FromSeconds(DayGrain / DaySpeed);
+            List<NightWrite> glide = Run(r.Scheduler, r.Clock, step, 27);    // 5.4 s for 54 points
+            Check(glide.Count == 27 && glide[glide.Count - 1].Value == 92,
+                "the dimming glides up to the value in even steps (got " + Dump(glide) + ")");
+
             r.Clock.At(16, 1, 0);
             Check(r.Scheduler.Advance().Count == 0, "01:00: the user's value stands");
 

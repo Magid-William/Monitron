@@ -47,6 +47,10 @@ display actually is.
     it lands. `Request` no longer applies the value, it starts the glide; the steps go through
     `writer.Apply` (due at once) because they are 200 ms apart and the slider's 250 ms settle would
     swallow them. Under `--no-schedule` there is no scheduler to glide it, so the row writes directly.
+  - The knob lands on the *instruction*, not on a fading value: `Goal` is the Default by day (and null
+    while the schedule is dimming or a slider value is still on its way), so a Default edit lands the knob
+    on the new Default at once and the dimming catches up - the same shape as a click on the track. The
+    night fade still moves the knob with the fade.
   - `Restore()` hands back the Default, not the reading it took at adoption.
   - `Program.cs` gains one seam (`--daylight N`) **and** a correction: `--no-schedule` must now mean the
     schedule never writes (an off schedule writes the Default), so `Apply` asks the scheduler only when
@@ -119,6 +123,11 @@ _Pending._
   slider ("cannot show one value while the monitor holds another"), which would make the knob crawl after
   the click; it now holds the knob at the user's value while a glide is pending and follows the schedule
   again once it lands.
+- ...and the same is true of the *settings*: after a Default edit the knob crawled along with the dimming,
+  because it only ever saw the in-flight writes. Giving the schedule a `Goal` - the instruction it is
+  headed to, null while it is fading - lets the row land the knob on the new Default at once, which is
+  what "behave like the click on the slider" means. A smoothed move still needs a control that shows the
+  destination, not the journey.
 - Both fades must start from where the display actually is - `NightFrom` at turn-on, `DayFrom` at
   turn-off - or a slider value in place makes the fade jump first (the fade-up used to lerp from the
   night level and would snap a user's 92 down to 38 before ramping to 70).

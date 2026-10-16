@@ -71,6 +71,7 @@ namespace Monitron.App
             TheNightStartsWhereTheDayIsMidRamp();
             EditingTheDaylightReanchorsTheRamp();
             FadeOffJumpsToTheDaylight();
+            TheGoalIsTheInstruction();
             TheFeatureOffAppliesTheDefault();
 
             Console.WriteLine();
@@ -692,6 +693,33 @@ namespace Monitron.App
             foreach (NightWrite x in r.Scheduler.Advance()) w.Add(x);
             Check(w.Count == 1 && w[0].Value == 90, "one write straight to 90 (got " + Dump(w) + ")");
             Check(r.Scheduler.Phase == NightPhase.Day, "and the phase stays Day");
+        }
+
+        private static void TheGoalIsTheInstruction()
+        {
+            Console.WriteLine("EXP17: the goal is where the display is headed - the Default lands at once, the dimming catches up");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 70);
+            r.Clock.At(15, 12, 0);
+            r.Scheduler.Advance();
+            Check(r.Scheduler.Goal("A") == 70, "by day the goal is the Default");
+
+            r.Settings.TrySetDaylight("90");
+            r.Scheduler.Advance();
+            Check(r.Scheduler.Goal("A") == 90, "a Default edit moves the goal at once - the knob lands on it");
+            Check(r.Scheduler.Target("A") == 70, "while the value itself is still on its way (got "
+                + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");
+
+            r.Clock.At(15, 23, 0);
+            r.Scheduler.Advance();
+            Check(r.Scheduler.Goal("A") == null, "at night there is no goal - the knob follows the fade");
+
+            r.Scheduler.Request("A", 50);
+            Check(r.Scheduler.Goal("A") == null, "and none while the user's own value is on its way");
+
+            r.Clock.At(16, 9, 31);
+            r.Scheduler.Advance();
+            Check(r.Scheduler.Goal("A") == 90, "back in daylight the goal is the Default again, not the slider's 50 (got "
+                + (r.Scheduler.Goal("A").HasValue ? r.Scheduler.Goal("A").Value.ToString(CultureInfo.InvariantCulture) : "null") + ")");
         }
 
         private static void TheFeatureOffAppliesTheDefault()

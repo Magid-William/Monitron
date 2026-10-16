@@ -349,6 +349,22 @@ namespace Monitron.App
         /// <summary>EXP17: the day value the schedule wants for this display right now (the Default).</summary>
         public int DayValue(string id) { return DayTarget(Get(id)); }
 
+        /// <summary>
+        /// EXP17: the value the schedule is taking this display *to*, when that is an instruction (the
+        /// Default, or a slider value that stands) rather than a fade in progress. Null while the schedule
+        /// is dimming - then the knob follows the fade - or while a slider value is still on its way. It
+        /// lets the row land the knob on the instruction and let the dimming catch up, exactly as a click
+        /// on the track behaves.
+        /// </summary>
+        public int? Goal(string id)
+        {
+            Entry e;
+            if (!_entries.TryGetValue(id, out e) || !e.HasAdopted) return null;
+            if (e.Overridden) return null;
+            if (_phase == NightPhase.FadingIn || _phase == NightPhase.Night || _phase == NightPhase.FadingOut) return null;
+            return DayTarget(e);
+        }
+
         public bool IsOverridden(string id) { return Get(id).Overridden; }
 
         /// <summary>

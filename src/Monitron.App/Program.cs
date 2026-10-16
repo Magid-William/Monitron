@@ -307,6 +307,19 @@ namespace Monitron.App
             Action<string, int> onWritten = delegate(string id, int applied)
             {
                 if (id != monitor.Id) return;
+                // EXP17: a move to the Default is an instruction, not a value crawling in - the knob jumps
+                // to it and the dimming catches up, exactly as a click on the track behaves.
+                int? goal = scheduler.Goal(monitor.Id);
+                if (goal.HasValue && goal.Value != applied)
+                {
+                    gliding = true;
+                    asked = goal.Value;
+                    syncing = true;
+                    try { if ((int)Math.Round(slider.Value) != goal.Value) slider.Value = goal.Value; }
+                    finally { syncing = false; }
+                    value.Text = goal.Value.ToString(CultureInfo.InvariantCulture);
+                    return;
+                }
                 if (gliding && applied != asked) return;   // on its way: leave the knob where the user put it
                 gliding = false;
                 syncing = true;

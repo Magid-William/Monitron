@@ -37,6 +37,10 @@
 //         hook is added on the spot (WindowHook), where EXP09's SourceInitialized hook never fired.
 //         --place-anchor tray|window and --place-monitor are its seams; --place-report gains
 //         anchor= and placements=.
+// EXP17 - and the day value is configured: a "Daylight" value in the settings (SettingsWindow.cs,
+//         SettingsPersistence.cs) is what the schedule returns each display to when the night ends,
+//         instead of the reading it happened to take when it first met the display. --daylight N is
+//         its verification seam; Schedule.cs carries the ramp a Day-phase move needs.
 //
 // One row per ACTIVE display: its real name, its real current brightness on a slider, and a gear
 // that opens the settings window (EXP04). Dragging a slider is debounced by BrightnessWriter and
@@ -396,6 +400,7 @@ namespace Monitron.App
             TimeSpan? turnOn = null;     // --on HH:mm / --off HH:mm: set the window outright
             TimeSpan? turnOff = null;
             int? strength = null;        // --strength N
+            int? daylight = null;        // --daylight N (EXP17: the value the night light returns to)
             TimeSpan? fade = null;       // --fade-seconds N (the whole fade in N seconds)
             TimeSpan? step = null;       // --step-seconds N (one staircase step every N seconds)
             string settingsFile = null;   // --settings-file <path>: where the settings live (verification)
@@ -439,6 +444,7 @@ namespace Monitron.App
                 else if (a == "--on" && i + 1 < args.Length) turnOn = ParseClock(args[++i]);
                 else if (a == "--off" && i + 1 < args.Length) turnOff = ParseClock(args[++i]);
                 else if (a == "--strength" && i + 1 < args.Length) strength = int.Parse(args[++i], CultureInfo.InvariantCulture);
+                else if (a == "--daylight" && i + 1 < args.Length) daylight = int.Parse(args[++i], CultureInfo.InvariantCulture);
                 else if (a == "--fade-seconds" && i + 1 < args.Length) fade = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
                 else if (a == "--step-seconds" && i + 1 < args.Length) step = TimeSpan.FromSeconds(double.Parse(args[++i], CultureInfo.InvariantCulture));
                 else if (a == "--settings-file" && i + 1 < args.Length) settingsFile = args[++i];
@@ -533,11 +539,12 @@ namespace Monitron.App
 
             // --- the settings the window edits and the schedule reads: one object, loaded from disk ---
             // The file is read first; the command-line seams are applied on top of it and are NEVER
-            // saved, so a verifier's --strength/--on/--off cannot rewrite the user's settings.
+            // saved, so a verifier's --strength/--daylight/--on/--off cannot rewrite the user's settings.
             var store = new SettingsStore(settingsFile);
             ScheduleSettings settings = store.Load();
             SetWindow(settings, turnOn, turnOff);
             if (strength.HasValue) settings.TrySetStrength(strength.Value.ToString(CultureInfo.InvariantCulture));
+            if (daylight.HasValue) settings.TrySetDaylight(daylight.Value.ToString(CultureInfo.InvariantCulture));
             if (!schedule) settings.SetEnabled(false);
 
             if (settingsOnly && reportDir == null)

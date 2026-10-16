@@ -122,7 +122,7 @@ function FindType($root, $controlType) {
 
 function ByName([string]$name) { return FindOne $script:win $AE::NameProperty $name }
 
-# The numeric fields, in reading order: strength first, then the two clock rows.
+# The numeric fields, in reading order: strength, daylight, then the two clock rows.
 function Edits() {
     $all = FindType $script:win ([System.Windows.Automation.ControlType]::Edit)
     return @($all | Sort-Object { $_.Current.BoundingRectangle.Top }, { $_.Current.BoundingRectangle.Left })
@@ -192,14 +192,16 @@ Write-Host "`n== first run: the file does not exist, defaults are shown =="
 $app = OpenApp (& $argsFor $settingsFile)
 $script:win = $app.Window
 Check ((Title $app.Handle) -eq 'Monitron settings') "window is titled 'Monitron settings' (got '$((Title $app.Handle))')"
-Check (((EditValues) -join ',') -eq '38,5,00,9,00') "a missing file shows the built-in defaults (38, 5:00, 9:00) - got $((EditValues) -join ',')"
+Check (((EditValues) -join ',') -eq '38,80,5,00,9,00') "a missing file shows the built-in defaults (38, daylight 80, 5:00, 9:00) - got $((EditValues) -join ',')"
 Check ((ToggleState (ByName 'gradual fade')) -eq [System.Windows.Automation.ToggleState]::On) "'gradual fade' is on by default"
 Check (-not (Test-Path $settingsFile)) "and nothing was written just by opening it"
 [void](Shot $app.Handle (Join-Path $ShotDir '01-first-run-defaults.png'))
 
-Write-Host "`n== drive it: strength 55, gradual fade off =="
+Write-Host "`n== drive it: strength 55, daylight 64, gradual fade off =="
 SetValue (Edits)[0] '55'
 Check ((EditValues)[0] -eq '55') "the field reads 55"
+SetValue (Edits)[1] '64'
+Check ((EditValues)[1] -eq '64') "the daylight field reads 64"
 Toggle (ByName 'gradual fade')
 Check ((ToggleState (ByName 'gradual fade')) -eq [System.Windows.Automation.ToggleState]::Off) "'gradual fade' is off now"
 Check (Test-Path $settingsFile) "the edit created the settings file"
@@ -214,6 +216,7 @@ Write-Host "----- $settingsFile -----"
 Write-Host $text.TrimEnd()
 Write-Host "-------------------------"
 Check ($text -match '(?m)^strength=55\s*$') "the file has strength=55"
+Check ($text -match '(?m)^daylight=64\s*$') "the file has daylight=64"
 Check ($text -match '(?m)^gradualFade=false\s*$') "the file has gradualFade=false"
 Check ($text -match '(?m)^version=1\s*$') "the file carries version=1"
 Check (-not (Test-Path ($settingsFile + '.tmp'))) "no .tmp was left behind"
@@ -226,6 +229,7 @@ Write-Host "`n== restart on that file: the edit comes back =="
 $app = OpenApp (& $argsFor $settingsFile)
 $script:win = $app.Window
 Check ((EditValues)[0] -eq '55') "strength is 55 again (got $((EditValues)[0]))"
+Check ((EditValues)[1] -eq '64') "daylight is 64 again (got $((EditValues)[1]))"
 Check ((ToggleState (ByName 'gradual fade')) -eq [System.Windows.Automation.ToggleState]::Off) "'gradual fade' is still off"
 Check ((ToggleState (ByName 'On')) -eq [System.Windows.Automation.ToggleState]::On) "the schedule is still on"
 [void](Shot $app.Handle (Join-Path $ShotDir '03-restarted.png'))
@@ -236,10 +240,11 @@ Check ((Get-FileHash $settingsFile).Hash -eq $hashAfterEdit) "opening and closin
 # --- 3. a corrupt file starts on the defaults, not a crash ---
 
 Write-Host "`n== a corrupt file =="
-Set-Content -Path $settingsFile -Value "this is not a settings file`nstrength=999`n" -NoNewline
+Set-Content -Path $settingsFile -Value "this is not a settings file`nstrength=999`ndaylight=999`n" -NoNewline
 $app = OpenApp (& $argsFor $settingsFile)
 $script:win = $app.Window
 Check ((EditValues)[0] -eq '38') "an unreadable strength falls back to the default 38 (got $((EditValues)[0]))"
+Check ((EditValues)[1] -eq '80') "an unreadable daylight falls back to the default 80 (got $((EditValues)[1]))"
 Check ((ToggleState (ByName 'gradual fade')) -eq [System.Windows.Automation.ToggleState]::On) "the other fields are at their defaults"
 Check (-not $app.Process.HasExited) "the app started and stayed up on a corrupt file"
 [void](Shot $app.Handle (Join-Path $ShotDir '04-corrupt-defaults.png'))

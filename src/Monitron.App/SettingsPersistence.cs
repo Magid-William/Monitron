@@ -1,4 +1,6 @@
-// EXP07 - persist the six schedule settings the window edits and the scheduler reads.
+// EXP07 - persist the schedule settings the window edits and the scheduler reads.
+// EXP17 - and the seventh: `daylight`, the value the night light returns screens to (an old file
+//         without the key keeps the built-in default).
 //
 // Two layers, on purpose:
 //   * SettingsCodec - pure text <-> ScheduleSettings, no I/O at all, so the round trip and every
@@ -32,6 +34,7 @@ namespace Monitron.App
             sb.Append("version=").Append(Version.ToString(CultureInfo.InvariantCulture)).Append(Environment.NewLine);
             sb.Append("enabled=").Append(Bool(settings.Enabled)).Append(Environment.NewLine);
             sb.Append("strength=").Append(settings.Strength.ToString(CultureInfo.InvariantCulture)).Append(Environment.NewLine);
+            sb.Append("daylight=").Append(settings.Daylight.ToString(CultureInfo.InvariantCulture)).Append(Environment.NewLine);
             sb.Append("gradualFade=").Append(Bool(settings.GradualFade)).Append(Environment.NewLine);
             sb.Append("mode=").Append(settings.Mode == ScheduleMode.SunsetToSunrise ? "SunsetToSunrise" : "SetHours").Append(Environment.NewLine);
             sb.Append("turnOn=").Append(Clock(settings.TurnOn)).Append(Environment.NewLine);
@@ -77,6 +80,11 @@ namespace Monitron.App
                     case "strength":
                         known++;
                         settings.TrySetStrength(value);   // out of range: refused, the held value stands
+                        break;
+
+                    case "daylight":
+                        known++;
+                        settings.TrySetDaylight(value);   // same rule as strength (EXP17)
                         break;
 
                     case "gradualfade":

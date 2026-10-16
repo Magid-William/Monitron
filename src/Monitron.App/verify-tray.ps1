@@ -466,7 +466,7 @@ if ($null -eq $day) {
     $today = (Get-Date).ToString('yyyy-MM-dd')
     # Turn on 30 simulated seconds in (1 real second at rate 30), then fade over 120 simulated
     # seconds (4 real seconds) - long enough to catch a dimmed reading before we Quit.
-    $night = "--now `"$today 16:04:30`" --rate 30 --on 16:05 --off 16:30 --strength $strength --fade-seconds 120 --step-seconds 10 --tray-menu"
+    $night = "--now `"$today 16:04:30`" --rate 30 --on 16:05 --off 16:30 --strength $strength --daylight $day --fade-seconds 120 --step-seconds 10 --tray-menu"
     $p = Launch 'a scripted night, then Quit from the menu' $night 40
     $dimmed = WaitFor { $v = ProbeRead; if ($null -ne $v -and $v -lt $day) { $v } else { $null } } 40 500
     Check ($null -ne $dimmed) "the AOC was dimmed mid-fade (probe read $dimmed, day $day)"

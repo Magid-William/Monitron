@@ -25,8 +25,8 @@ namespace Monitron.App
             Console.WriteLine("ScheduleSettings - transitions driven, state asserted");
 
             var s = new ScheduleSettings();
-            Check(s.Enabled && s.Strength == 38 && s.GradualFade && s.Mode == ScheduleMode.SetHours,
-                "defaults: on, 38 %, gradual fade, Set hours");
+            Check(s.Enabled && s.Strength == 38 && s.Daylight == 80 && s.GradualFade && s.Mode == ScheduleMode.SetHours,
+                "defaults: on, 38 %, 80 % daylight, gradual fade, Set hours");
             Check(s.TurnOnText == "5:00 PM" && s.TurnOffText == "9:00 AM",
                 "defaults: turn on 5:00 PM, turn off 9:00 AM");
 
@@ -62,6 +62,18 @@ namespace Monitron.App
             Check(!s.TrySetStrength("abc") && s.Strength == 0, "non-numeric refused, 0 kept");
             Check(!s.TrySetStrength(null) && s.Strength == 0, "null refused, 0 kept");
             Check(s.TrySetStrength("38") && s.Strength == 38, "back to the sketch's 38");
+
+            Console.WriteLine("daylight (EXP17)");
+            Check(s.Daylight == 80, "starts at 80");
+            Check(s.TrySetDaylight("90") && s.Daylight == 90, "90 accepted");
+            Check(s.TrySetDaylight(" 5 ") && s.Daylight == 5, "whitespace trimmed");
+            Check(s.TrySetDaylight("100") && s.Daylight == 100, "100 accepted (top of range)");
+            Check(s.TrySetDaylight("0") && s.Daylight == 0, "0 accepted (bottom of range)");
+            Check(!s.TrySetDaylight("101") && s.Daylight == 0, "101 refused, 0 kept");
+            Check(!s.TrySetDaylight("-3") && s.Daylight == 0, "-3 refused, 0 kept");
+            Check(!s.TrySetDaylight("abc") && s.Daylight == 0, "non-numeric refused, 0 kept");
+            Check(!s.TrySetDaylight(null) && s.Daylight == 0, "null refused, 0 kept");
+            Check(s.TrySetDaylight("80") && s.Daylight == 80, "back to the default 80");
 
             Console.WriteLine("times: 12-hour clock, midnight and noon included");
             Check(s.TrySetTurnOn(5, 0, true) && s.TurnOnText == "5:00 PM", "5:00 PM from parts");

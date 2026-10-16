@@ -54,7 +54,7 @@ namespace Monitron.App
             var d = new ScheduleSettings();
             string text = SettingsCodec.Serialize(d);
             Check(text.Contains("version=1"), "carries version=1");
-            Check(text.Contains("enabled=true") && text.Contains("strength=38")
+            Check(text.Contains("enabled=true") && text.Contains("strength=38") && text.Contains("daylight=80")
                 && text.Contains("gradualFade=true") && text.Contains("mode=SetHours")
                 && text.Contains("turnOn=17:00") && text.Contains("turnOff=09:00"),
                 "defaults spelled out as key=value lines");
@@ -66,20 +66,21 @@ namespace Monitron.App
             var a = new ScheduleSettings();
             var b = new ScheduleSettings();
             int known = SettingsCodec.Parse(SettingsCodec.Serialize(a), b);
-            Check(known == 7, "seven recognized keys (got " + known + ")");
+            Check(known == 8, "eight recognized keys (got " + known + ")");
             Check(Same(a, b), "parsing a serialized default model reproduces it exactly");
 
             Console.WriteLine("round trip: every field moved");
             var moved = new ScheduleSettings();
             moved.SetEnabled(false);
             moved.TrySetStrength("55");
+            moved.TrySetDaylight("65");
             moved.ToggleGradualFade();
             moved.SetMode(ScheduleMode.SunsetToSunrise);
             moved.TrySetTurnOn(6, 5, false);     // 6:05 AM
             moved.TrySetTurnOff(11, 30, true);   // 11:30 PM
             var restored = new ScheduleSettings();
             SettingsCodec.Parse(SettingsCodec.Serialize(moved), restored);
-            Check(Same(moved, restored), "off, 55, no fade, sunset, 6:05 AM -> 11:30 PM all survive");
+            Check(Same(moved, restored), "off, 55, 65 daylight, no fade, sunset, 6:05 AM -> 11:30 PM all survive");
 
             Console.WriteLine("a corrupt line cannot wipe the rest");
             var c = new ScheduleSettings();
@@ -94,6 +95,10 @@ namespace Monitron.App
             var e = new ScheduleSettings();
             SettingsCodec.Parse("strength=999", e);
             Check(e.Strength == 38, "strength=999 is refused through the model's own rule, default kept");
+            SettingsCodec.Parse("daylight=999", e);
+            Check(e.Daylight == 80, "daylight=999 is refused the same way, default 80 kept");
+            SettingsCodec.Parse("daylight=64", e);
+            Check(e.Daylight == 64, "and a good daylight line applies");
             Check(SettingsCodec.Parse("banana=1\nhello\n", new ScheduleSettings()) == 0,
                 "a document with no recognized key reports 0");
             Check(SettingsCodec.Parse(null, new ScheduleSettings()) == 0, "null text is 0, not a crash");
@@ -177,28 +182,36 @@ namespace Monitron.App
             s.TrySetStrength("999");
             Check(fired == 1, "a refused strength fires nothing");
 
+            s.TrySetDaylight("64");
+            Check(fired == 2, "an accepted daylight fires once");
+            s.TrySetDaylight("64");
+            Check(fired == 2, "setting the same daylight fires nothing");
+            s.TrySetDaylight("999");
+            Check(fired == 2, "a refused daylight fires nothing");
+
             s.ToggleGradualFade();
-            Check(fired == 2, "toggling the fade fires");
+            Check(fired == 3, "toggling the fade fires");
             s.SetEnabled(false);
-            Check(fired == 3, "turning the feature off fires");
+            Check(fired == 4, "turning the feature off fires");
             s.SetEnabled(false);
-            Check(fired == 3, "a no-op set fires nothing");
+            Check(fired == 4, "a no-op set fires nothing");
             s.SetMode(ScheduleMode.SunsetToSunrise);
-            Check(fired == 4, "changing the mode fires");
+            Check(fired == 5, "changing the mode fires");
             s.SetMode(ScheduleMode.SunsetToSunrise);
-            Check(fired == 4, "the same mode again fires nothing");
+            Check(fired == 5, "the same mode again fires nothing");
             s.TrySetTurnOn(6, 5, false);
-            Check(fired == 5, "a changed turn-on fires");
+            Check(fired == 6, "a changed turn-on fires");
             s.TrySetTurnOn(6, 5, false);
-            Check(fired == 5, "the same turn-on fires nothing");
+            Check(fired == 6, "the same turn-on fires nothing");
             s.TrySetTurnOff(12, 60, true);
-            Check(fired == 5, "a refused clock fires nothing");
+            Check(fired == 6, "a refused clock fires nothing");
         }
 
         private static bool Same(ScheduleSettings x, ScheduleSettings y)
         {
             return x.Enabled == y.Enabled
                 && x.Strength == y.Strength
+                && x.Daylight == y.Daylight
                 && x.GradualFade == y.GradualFade
                 && x.Mode == y.Mode
                 && x.TurnOn == y.TurnOn

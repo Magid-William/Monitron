@@ -59,8 +59,14 @@ namespace Monitron.App
             StrengthChangesTakeEffectAtOnce();
             RangesArePerDisplay();
             IdempotentAndQuietByDay();
-            RestoreHandsTheDayValueBack();
+            RestoreHandsTheValueBack();
             StatusReportsThePhase();
+            TheDayValueIsTheDaylightSetting();
+            ADisplayMetDimmedComesBackToDaylight();
+            TheNightStartsWhereTheDayIsMidRamp();
+            ADragIsTheDisplaysOwnDayValue();
+            EditingTheDaylightReanchorsTheRamp();
+            FadeOffJumpsToTheDaylight();
 
             Console.WriteLine();
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
@@ -81,6 +87,22 @@ namespace Monitron.App
                 Clock.At(15, 16, 0);
                 SetWindow(Settings, on, off);
                 Settings.TrySetStrength(strength.ToString(CultureInfo.InvariantCulture));
+                // EXP17: the fixture's daylight matches the display's reading, so the mechanics tests
+                // below (the fades, the override) see the same day value they always did; the tests
+                // that are about the setting pass their own.
+                Settings.TrySetDaylight("70");
+                Scheduler = new NightLightScheduler(Settings, delegate { return Clock.Now; },
+                    TimeSpan.FromMinutes(fadeMinutes), TimeSpan.FromMinutes(stepMinutes));
+                Scheduler.Observe("A", 0, 100, 70);
+            }
+
+            /// <summary>EXP17: a fixture whose configured daylight differs from the reading.</summary>
+            public Rig(string on, string off, int fadeMinutes, int stepMinutes, int strength, int daylight)
+            {
+                Clock.At(15, 16, 0);
+                SetWindow(Settings, on, off);
+                Settings.TrySetStrength(strength.ToString(CultureInfo.InvariantCulture));
+                Settings.TrySetDaylight(daylight.ToString(CultureInfo.InvariantCulture));
                 Scheduler = new NightLightScheduler(Settings, delegate { return Clock.Now; },
                     TimeSpan.FromMinutes(fadeMinutes), TimeSpan.FromMinutes(stepMinutes));
                 Scheduler.Observe("A", 0, 100, 70);
@@ -471,9 +493,9 @@ namespace Monitron.App
             Check(r.Scheduler.Phase == NightPhase.Day, "and the phase is Day");
         }
 
-        private static void RestoreHandsTheDayValueBack()
+        private static void RestoreHandsTheValueBack()
         {
-            Console.WriteLine("closing the app hands the day value back");
+            Console.WriteLine("closing the app hands back the value the display had");
             var r = new Rig("17:00", "09:00", 30, 1, 38);
             r.Clock.At(15, 23, 0);
             r.Scheduler.Advance();
@@ -481,7 +503,7 @@ namespace Monitron.App
 
             List<NightWrite> w = new List<NightWrite>();
             foreach (NightWrite x in r.Scheduler.Restore()) w.Add(x);
-            Check(w.Count == 1 && w[0].Value == 70, "Restore() writes the day value (got " + Dump(w) + ")");
+            Check(w.Count == 1 && w[0].Value == 70, "Restore() writes the value the display had (got " + Dump(w) + ")");
             Check(!r.Scheduler.Engaged, "and lets go of the display");
 
             List<NightWrite> again = new List<NightWrite>();
@@ -523,6 +545,132 @@ namespace Monitron.App
             r.Settings.SetEnabled(false);
             r.Scheduler.Advance();
             Check(r.Scheduler.Status == "Night light: off", "off: '" + r.Scheduler.Status + "'");
+        }
+
+        // --- EXP17: the day value is configured, not read off the panel ---
+
+        private static bool StrictlyIncreasing(IList<NightWrite> writes)
+        {
+            for (int i = 1; i < writes.Count; i++) if (writes[i].Value <= writes[i - 1].Value) return false;
+            return true;
+        }
+
+        private static void TheDayValueIsTheDaylightSetting()
+        {
+            Console.WriteLine("EXP17: the day value is the configured daylight, not the reading");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 90);
+            Check(r.Scheduler.DayValue("A") == 90,
+                "the day value is the configured 90, not the reading 70 (got "
+                + r.Scheduler.DayValue("A").ToString(CultureInfo.InvariantCulture) + ")");
+
+            r.Clock.At(15, 12, 0);
+            Check(r.Scheduler.Advance().Count == 0,
+                "12:00: the ramp begins at the value the display has now, so nothing jumps");
+            List<NightWrite> up = Run(r.Scheduler, r.Clock, TimeSpan.FromMinutes(1), 31);
+            Check(up.Count > 0 && NonDecreasing(up), "the ramp climbs (got " + Dump(up) + ")");
+            Check(up[0].Value == 71, "the first step is one increment up from 70 (got "
+                + up[0].Value.ToString(CultureInfo.InvariantCulture) + ")");
+            Check(up[up.Count - 1].Value == 90 && r.Scheduler.Target("A") == 90,
+                "and it is held at the daylight 90 (last " + up[up.Count - 1].Value.ToString(CultureInfo.InvariantCulture)
+                + ", target " + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");
+        }
+
+        private static void ADisplayMetDimmedComesBackToDaylight()
+        {
+            Console.WriteLine("EXP17: a display met while dimmed still gets the configured day value back");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 90);
+            // The report: the app adopts the display at the night level (a restart mid-night / a
+            // re-attach), so its reading is 38 - its day value must still be the configured 90.
+            r.Scheduler.Observe("B", 0, 100, 38);
+            Check(r.Scheduler.DayValue("B") == 90, "a display read at 38 still has 90 as its day value");
+            Check(r.Scheduler.Baseline("B") == 38, "and 38 is only what it is handed back on exit");
+
+            r.Clock.At(15, 17, 30);
+            r.Scheduler.Advance();
+            Check(r.Scheduler.Target("A") == 38 && r.Scheduler.Target("B") == 38, "both are at the night level");
+
+            r.Clock.At(16, 9, 31);
+            List<NightWrite> w = new List<NightWrite>();
+            foreach (NightWrite x in r.Scheduler.Advance()) w.Add(x);
+            bool backToDaylight = false;
+            foreach (NightWrite x in w) if (x.Id == "B" && x.Value == 90) backToDaylight = true;
+            Check(backToDaylight, "the morning writes 90 to the display met dimmed (got " + Dump(w) + ")");
+        }
+
+        private static void TheNightStartsWhereTheDayIsMidRamp()
+        {
+            Console.WriteLine("EXP17: a day ramp still running at turn-on is not jumped up to the day value");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 90);
+
+            r.Clock.At(15, 16, 50);
+            r.Scheduler.Advance();                       // the ramp begins from the reading (70)
+            List<NightWrite> up = new List<NightWrite>();
+            for (int i = 0; i < 9; i++)                  // 16:51 .. 16:59
+            {
+                r.Clock.Advance(TimeSpan.FromMinutes(1));
+                foreach (NightWrite x in r.Scheduler.Advance()) up.Add(x);
+            }
+            Check(up.Count > 0 && StrictlyIncreasing(up), "the day ramp climbs (got " + Dump(up) + ")");
+            int beforeNight = r.Scheduler.Target("A").Value;
+            Check(beforeNight > 70 && beforeNight < 90,
+                "still below the day value when the window opens (got " + beforeNight.ToString(CultureInfo.InvariantCulture) + ")");
+
+            r.Clock.At(15, 17, 0);
+            Check(r.Scheduler.Advance().Count == 0, "17:00: the fade starts where the display is, so nothing jumps");
+            Check(r.Scheduler.Phase == NightPhase.FadingIn, "AND the phase is FadingIn");
+
+            r.Clock.At(15, 17, 1);
+            List<NightWrite> down = new List<NightWrite>();
+            foreach (NightWrite x in r.Scheduler.Advance()) down.Add(x);
+            Check(down.Count == 1 && down[0].Value < beforeNight,
+                "one minute later it is dimmer, never brighter (got " + Dump(down) + ")");
+        }
+
+        private static void ADragIsTheDisplaysOwnDayValue()
+        {
+            Console.WriteLine("EXP17: a slider drag is that display's own day value");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 90);
+            r.Clock.At(15, 12, 0);
+            r.Scheduler.Request("A", 60);                // the user drags during the day
+            Check(r.Scheduler.DayValue("A") == 60, "the day value is the user's 60, not the configured 90");
+
+            r.Clock.At(15, 23, 0);
+            r.Scheduler.Advance();
+            Check(r.Scheduler.Target("A") == 38, "held at the night level");
+
+            r.Clock.At(16, 9, 31);
+            List<NightWrite> w = new List<NightWrite>();
+            foreach (NightWrite x in r.Scheduler.Advance()) w.Add(x);
+            Check(w.Count == 1 && w[0].Value == 60, "the morning returns the user's 60 (got " + Dump(w) + ")");
+        }
+
+        private static void EditingTheDaylightReanchorsTheRamp()
+        {
+            Console.WriteLine("EXP17: editing the daylight mid-ramp re-anchors it, with no jump");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 90);
+            r.Clock.At(15, 12, 0);
+            r.Scheduler.Advance();                       // the ramp 70 -> 90 begins
+            List<NightWrite> up = Run(r.Scheduler, r.Clock, TimeSpan.FromMinutes(1), 5);   // 12:01 .. 12:05
+            Check(up.Count > 0 && NonDecreasing(up) && up[up.Count - 1].Value == 73,
+                "five minutes in, the display is at 73 (got " + Dump(up) + ")");
+
+            r.Settings.TrySetDaylight("60");             // the user lowers the day value
+            List<NightWrite> down = Run(r.Scheduler, r.Clock, TimeSpan.FromMinutes(1), 32); // 12:06 .. 12:37
+            Check(NonIncreasing(down), "the ramp turns around and never steps up (got " + Dump(down) + ")");
+            Check(r.Scheduler.Target("A") == 60, "and its target is the new 60 (got "
+                + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");
+        }
+
+        private static void FadeOffJumpsToTheDaylight()
+        {
+            Console.WriteLine("EXP17: gradual fade off goes straight to the configured day value");
+            var r = new Rig("17:00", "09:00", 30, 1, 38, 90);
+            r.Settings.ToggleGradualFade();
+            r.Clock.At(15, 12, 0);
+            List<NightWrite> w = new List<NightWrite>();
+            foreach (NightWrite x in r.Scheduler.Advance()) w.Add(x);
+            Check(w.Count == 1 && w[0].Value == 90, "one write straight to 90 (got " + Dump(w) + ")");
+            Check(r.Scheduler.Phase == NightPhase.Day, "and the phase stays Day");
         }
     }
 }

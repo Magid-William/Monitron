@@ -284,14 +284,17 @@ $day = $probe0[0].Value
 $strength = if ($day -ge 15) { $day - 10 } else { [Math]::Min(100, $day + 10) }
 if ($strength -eq $day) { $strength = [Math]::Max(0, $day - 1) }
 $descending = $strength -lt $day
+# EXP17: the day value is configured, not the reading - pin it to the reading so the day makes no
+# move of its own and the night is the only thing this run watches.
+$daylight = $day
 
 # A scripted night: start at 16:00, turn on 16:05, fade 2 minutes in 10-second steps, turn off 16:22.
 # At --rate 30 one simulated minute is two real seconds, so the whole night is under a minute.
 $today = (Get-Date).ToString('yyyy-MM-dd')
-$args = "--now `"$today 16:00:00`" --rate $Rate --on 16:05 --off 16:22 --strength $strength --fade-seconds 120 --step-seconds 10 --no-tray --settings-file `"$SettingsFile`""
+$args = "--now `"$today 16:00:00`" --rate $Rate --on 16:05 --off 16:22 --strength $strength --daylight $daylight --fade-seconds 120 --step-seconds 10 --no-tray --settings-file `"$SettingsFile`""
 Write-Host "`n== launch a scripted night =="
 Write-Host ("  $Exe $args")
-Write-Host ("  strength $strength (from $day), fade 120 s in 10 s steps")
+Write-Host ("  strength $strength (from $day), daylight $daylight, fade 120 s in 10 s steps")
 
 $p = Start-Process -FilePath $Exe -ArgumentList $args -PassThru
 $h = [IntPtr]::Zero
@@ -419,18 +422,20 @@ try {
         Start-Sleep -Milliseconds 1500
         Check (((ProbeValues) -join ',') -eq (($probe0 | ForEach-Object { $_.Value }) -join ',')) "every display the probe can read keeps its value - no schedule write over an override"
         # The panel is not overridden, so turn-off ramps it back up its own staircase: wait for the
-        # ramp to finish rather than sampling it at an arbitrary instant mid-fade.
+        # ramp to finish rather than sampling it at an arbitrary instant mid-fade. EXP17: the value it
+        # returns to is the configured daylight, scaled into the panel's own range.
         foreach ($r in $wmiRows) {
             if ($SkipInternal) { continue }
+            $want = NightLevel $r.Min $r.Max $daylight
             $first = -1
             $back = -1
             for ($i = 0; $i -lt 40; $i++) {
                 $back = WmiRead $r.Instance
                 if ($first -lt 0) { $first = $back }
-                if ($back -eq $r.Value) { break }
+                if ($back -eq $want) { break }
                 Start-Sleep -Milliseconds 250
             }
-            Check ($back -eq $r.Value) "and the panel is back at its own $($r.Value) (independent WMI read saw $back, first saw $first after turn-off)"
+            Check ($back -eq $want) "and the panel is back at the day value $want (independent WMI read saw $back, first saw $first after turn-off)"
         }
         [void](ShotGood $h (Join-Path $ShotDir '04-day-after.png'))
 
@@ -448,7 +453,7 @@ try {
                 $sw = $AE::FromHandle($sh)
                 $edits = @((FindType $sw ([System.Windows.Automation.ControlType]::Edit)))
                 $values = @($edits | ForEach-Object { ([System.Windows.Automation.ValuePattern]$_.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)).Current.Value })
-                Check (($values -join ',') -eq "$strength,4,05,4,22") "it shows the running schedule: strength $strength, turn on 4:05, turn off 4:22 (got $($values -join ','))"
+                Check (($values -join ',') -eq "$strength,$daylight,4,05,4,22") "it shows the running schedule: strength $strength, daylight $daylight, turn on 4:05, turn off 4:22 (got $($values -join ','))"
                 Check (@((FindType $sw ([System.Windows.Automation.ControlType]::Text)) | ForEach-Object { $_.Current.Name }) -contains 'Schedule night light') "and it is the night-light schedule"
                 [void][WinExp06]::PostMessage($sh, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)   # WM_CLOSE
                 Start-Sleep -Milliseconds 700

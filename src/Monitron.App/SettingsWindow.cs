@@ -30,6 +30,7 @@ namespace Monitron.App
         private RadioButton _sunsetRadio;
         private RadioButton _hoursRadio;
         private TextBox _strengthBox;
+        private TextBox _daylightBox;
         private TextBox _onHour;
         private TextBox _onMinute;
         private TextBox _offHour;
@@ -61,6 +62,7 @@ namespace Monitron.App
 
             _body = new StackPanel();
             _body.Children.Add(StrengthRow());
+            _body.Children.Add(DaylightRow());
             _body.Children.Add(FadeRow());
             _body.Children.Add(ModeRow());
             _body.Children.Add(HoursPanel());
@@ -151,6 +153,39 @@ namespace Monitron.App
             Grid.SetColumn(percent, 2);
             grid.Children.Add(caption);
             grid.Children.Add(_strengthBox);
+            grid.Children.Add(percent);
+            return grid;
+        }
+
+        private UIElement DaylightRow()
+        {
+            _daylightBox = new TextBox
+            {
+                Width = 46,
+                MaxLength = 3,
+                TextAlignment = TextAlignment.Right,
+                Padding = new Thickness(4, 2, 4, 2),
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = "Daylight brightness: the level the schedule returns each display to, 0-100 percent",
+            };
+            _daylightBox.TextChanged += delegate { CommitDaylight(); };
+            _daylightBox.LostFocus += delegate { Render(); };   // leaving the field canonicalises or reverts it
+            _daylightBox.KeyDown += OnCommitKey;
+
+            var percent = Label("%", 13, _t.Ink, FontWeights.Normal, new Thickness(8, 0, 0, 0));
+            percent.VerticalAlignment = VerticalAlignment.Center;
+
+            var grid = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(88) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            var caption = Label("Daylight", 13, _t.Ink, FontWeights.Normal, new Thickness(0));
+            caption.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(caption, 0);
+            Grid.SetColumn(_daylightBox, 1);
+            Grid.SetColumn(percent, 2);
+            grid.Children.Add(caption);
+            grid.Children.Add(_daylightBox);
             grid.Children.Add(percent);
             return grid;
         }
@@ -309,6 +344,12 @@ namespace Monitron.App
             _model.TrySetStrength(_strengthBox.Text);
         }
 
+        private void CommitDaylight()
+        {
+            if (_rendering) return;
+            _model.TrySetDaylight(_daylightBox.Text);
+        }
+
         private void CommitTimes()
         {
             if (_rendering) return;
@@ -362,6 +403,7 @@ namespace Monitron.App
             {
                 _enabledBox.IsChecked = _model.Enabled;
                 _strengthBox.Text = _model.Strength.ToString(CultureInfo.InvariantCulture);
+                _daylightBox.Text = _model.Daylight.ToString(CultureInfo.InvariantCulture);
                 _fadeBox.IsChecked = _model.GradualFade;
                 _sunsetRadio.IsChecked = _model.Mode == ScheduleMode.SunsetToSunrise;
                 _hoursRadio.IsChecked = _model.Mode == ScheduleMode.SetHours;

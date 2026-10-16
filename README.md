@@ -23,9 +23,9 @@ level overnight, and put every screen back the way it was in the morning.
 
 - **A slider for every screen.** Your main monitor bright, your second one dim — each keeps its own
   level. External monitors and laptop panels both work.
-- **A night light that remembers.** Choose a start time, an end time, and how dim to go. Monitron
-  fades down when the night begins and gives each screen back exactly the brightness it had before —
-  so nothing is left dark when you don't expect it.
+- **A night light that remembers.** Choose a start time, an end time, how dim to go at night, and how
+  bright to come back in the morning. Monitron fades down when the night begins and eases every
+  screen back up to your daylight level — so nothing is left dark when you don't expect it.
 - **Out of the way.** Close the window and it keeps running from the tray. Open it again from the
   tray icon whenever you like, or switch on *Run on Windows startup*.
 - **Matches your PC.** The windows follow your Windows light or dark theme, and it carries its own
@@ -34,7 +34,7 @@ level overnight, and put every screen back the way it was in the morning.
 ## Using it
 
 1. **Set a screen** — drag its slider.
-2. **Set the night light** — click the gear on a row, switch it on, and pick the hours and strength.
+2. **Set the night light** — click the gear on a row, switch it on, and pick the hours and the two levels (night and daylight).
 3. **Leave it running** — close the window; the tray icon brings it back, or quits it.
 
 ## Getting it

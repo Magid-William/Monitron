@@ -154,7 +154,7 @@ namespace Monitron.App
             Check(diff.Added.Count == 1 && diff.Added[0].Id == "B", "the arriving display is reported");
             Check(diff.Removed.Count == 0, "nothing was removed");
             Check(writer.Count == 2 && writer.Target("B") == 70, "the writer seeded it from its reading");
-            Check(scheduler.Count == 2 && scheduler.Baseline("B") == 70, "and the schedule captured its day value");
+            Check(scheduler.Count == 2 && scheduler.Baseline("B") == 70, "and the schedule recorded what it would hand back");
             Check(writer.Target("A") == 30, "the display that stayed keeps its value");
         }
 
@@ -199,7 +199,7 @@ namespace Monitron.App
             fake.Set = Set(M("B", 10), M("A", 55));
             DisplayDiff back = registry.Refresh();
             Check(back.Added.Count == 1 && back.Added[0].Id == "A", "a display that returns is added again");
-            Check(scheduler.Baseline("A") == 55, "with its new value as the day value");
+            Check(scheduler.Baseline("A") == 55, "with its new value recorded");
         }
 
         private static void ACloseNeverRestoresAGoneDisplay()

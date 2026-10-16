@@ -29,6 +29,7 @@ namespace Monitron.App
         {
             Enabled = true;
             Strength = 38;                  // the sample value from the sketch
+            Daylight = 80;                  // EXP17: the value the night light returns screens to
             GradualFade = true;
             Mode = ScheduleMode.SetHours;   // the sketch supplies turn-on/off times, so they start live
             TurnOn = new TimeSpan(17, 0, 0);    // 5:00 PM
@@ -38,6 +39,12 @@ namespace Monitron.App
         // --- state ---
         public bool Enabled { get; private set; }
         public int Strength { get; private set; }
+        /// <summary>
+        /// EXP17: the day value - the level the schedule returns a display to when it is not dimming
+        /// it, scaled into that display's own range like <see cref="Strength"/>. A slider drag on a
+        /// display overrides it for that display.
+        /// </summary>
+        public int Daylight { get; private set; }
         public bool GradualFade { get; private set; }
         public ScheduleMode Mode { get; private set; }
         public TimeSpan TurnOn { get; private set; }
@@ -121,6 +128,19 @@ namespace Monitron.App
             if (value < StrengthMin || value > StrengthMax) return false;
             if (Strength == value) return true;      // accepted, but nothing changed
             Strength = value;
+            RaiseChanged();
+            return true;
+        }
+
+        /// <summary>Daylight is an integer percent, refused the same way strength is.</summary>
+        public bool TrySetDaylight(string text)
+        {
+            int value;
+            if (text == null) return false;
+            if (!int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value)) return false;
+            if (value < StrengthMin || value > StrengthMax) return false;
+            if (Daylight == value) return true;      // accepted, but nothing changed
+            Daylight = value;
             RaiseChanged();
             return true;
         }

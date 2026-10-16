@@ -6,7 +6,7 @@
 //         *ephemeral* - it moves the display and stands the schedule down for it only until the next
 //         boundary (the coming turn-on or turn-off), where the schedule resumes. A move with no clock
 //         boundary carries its own ramp - and, being something the user just asked for, a *short* one
-//         (dayFade/dayStep: 20 seconds by default) rather than the 30-minute night fade. Every ramp is
+//         (dayFade/dayStep: 5 seconds by default) rather than the 30-minute night fade. Every ramp is
 //         the same staircase, so a move steps at most once per its own step.
 //
 // Inputs: the clock and ScheduleSettings. Output: the brightness values the schedule wants the
@@ -385,7 +385,7 @@ namespace Monitron.App
 
         /// <summary>
         /// How far into a fade we are, as a step of the staircase: the value changes at most once per
-        /// `step`, so a 30-minute night fade is ~30 writes and a 20-second day move ~20, no matter how
+        /// `step`, so a 30-minute night fade is ~30 writes and a 5-second day move ~10, no matter how
         /// often it is ticked.
         /// </summary>
         private static double Fraction(TimeSpan elapsed, TimeSpan fade, TimeSpan step)

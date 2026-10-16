@@ -36,9 +36,9 @@ namespace Monitron.App
         private static int _failed;
 
         // EXP17: the app's own move-to-Default timing (Program.cs DayMove/DayMoveStep), so the fixture
-        // drives the ramp the shipped app actually has - twenty seconds, not the night's half hour.
-        private static readonly TimeSpan DayMove = TimeSpan.FromSeconds(20);
-        private static readonly TimeSpan DayMoveStep = TimeSpan.FromSeconds(1);
+        // drives the ramp the shipped app actually has - five seconds, not the night's half hour.
+        private static readonly TimeSpan DayMove = TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan DayMoveStep = TimeSpan.FromMilliseconds(500);
 
         private static void Check(bool condition, string what)
         {
@@ -597,11 +597,11 @@ namespace Monitron.App
             r.Clock.At(15, 12, 0);
             Check(r.Scheduler.Advance().Count == 0,
                 "12:00: the ramp begins at the value the display has now, so nothing jumps");
-            List<NightWrite> up = Run(r.Scheduler, r.Clock, TimeSpan.FromSeconds(1), 10);
+            List<NightWrite> up = Run(r.Scheduler, r.Clock, DayMoveStep, 5);
             Check(up.Count > 0 && NonDecreasing(up), "the ramp climbs (got " + Dump(up) + ")");
             Check(r.Scheduler.Target("A") == 80, "half way through the move it is at 80 (got "
                 + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");
-            List<NightWrite> rest = Run(r.Scheduler, r.Clock, TimeSpan.FromSeconds(1), 11);
+            List<NightWrite> rest = Run(r.Scheduler, r.Clock, DayMoveStep, 6);
             Check(rest.Count > 0 && rest[rest.Count - 1].Value == 90 && r.Scheduler.Target("A") == 90,
                 "the move lands on the daylight 90 well inside a minute (last " + rest[rest.Count - 1].Value.ToString(CultureInfo.InvariantCulture)
                 + ", target " + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");
@@ -636,7 +636,7 @@ namespace Monitron.App
 
             r.Clock.At(15, 16, 59);
             r.Scheduler.Advance();                       // the ramp begins from the reading (70)
-            List<NightWrite> up = Run(r.Scheduler, r.Clock, TimeSpan.FromSeconds(1), 10);   // 16:59:01 .. 16:59:10
+            List<NightWrite> up = Run(r.Scheduler, r.Clock, DayMoveStep, 5);   // 16:59:00 + half the move
             Check(up.Count > 0 && StrictlyIncreasing(up), "the day ramp climbs (got " + Dump(up) + ")");
             int beforeNight = r.Scheduler.Target("A").Value;
             Check(beforeNight > 70 && beforeNight < 90,
@@ -659,12 +659,12 @@ namespace Monitron.App
             var r = new Rig("17:00", "09:00", 30, 1, 38, 90);
             r.Clock.At(15, 12, 0);
             r.Scheduler.Advance();                       // the ramp 70 -> 90 begins
-            List<NightWrite> up = Run(r.Scheduler, r.Clock, TimeSpan.FromSeconds(1), 10);   // 12:00:01 .. 12:00:10
+            List<NightWrite> up = Run(r.Scheduler, r.Clock, DayMoveStep, 5);   // half the move in
             Check(up.Count > 0 && NonDecreasing(up) && r.Scheduler.Target("A") == 80,
                 "half way in, the display is at 80 (got " + Dump(up) + ")");
 
             r.Settings.TrySetDaylight("60");             // the user lowers the day value
-            List<NightWrite> down = Run(r.Scheduler, r.Clock, TimeSpan.FromSeconds(1), 21); // 12:00:11 .. 12:00:31
+            List<NightWrite> down = Run(r.Scheduler, r.Clock, DayMoveStep, 11);
             Check(NonIncreasing(down), "the ramp turns around and never steps up (got " + Dump(down) + ")");
             Check(r.Scheduler.Target("A") == 60, "and its target is the new 60 (got "
                 + r.Scheduler.Target("A").Value.ToString(CultureInfo.InvariantCulture) + ")");

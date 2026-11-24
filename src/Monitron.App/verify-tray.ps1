@@ -9,7 +9,9 @@
 #   * witnesses the Run entry outside the app, with Get-ItemProperty on HKCU\...\Run, under a
 #     throwaway value name so the user's real autostart is never touched;
 #   * witnesses Show/Hide with Win32 IsWindowVisible and the process still running;
-#   * witnesses Quit's restore with the read-only EXP02 probe.
+#   * witnesses Quit's restore with the read-only EXP02 probe;
+#   * (EXP18) posts the shell's registered TaskbarCreated id to the app's own hidden tray window and
+#     expects the app's adds counter to move to 2 with the shell's icon still there.
 #
 #   .\verify-tray.ps1                  # full scenario, shots into %TEMP%\monitron-exp11
 #   .\verify-tray.ps1 -ShotDir .\out   # keep the evidence somewhere else
@@ -52,6 +54,9 @@ public static class WinExp11 {
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr wp, IntPtr lp);
+    // EXP18: the shell's own id for the taskbar-recreated broadcast. Registering it here returns the
+    // same id the app registered, so a targeted post carries the message a real broadcast carries.
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int RegisterWindowMessage(string name);
     // The shell's own answer for where it put the icon belonging to a given window - an independent
     // witness that the icon really is registered in the notification area.
     [DllImport("shell32.dll", SetLastError=true)] public static extern int Shell_NotifyIconGetRect(ref NID id, out RECT r);
@@ -118,6 +123,22 @@ function HwndByTitle([int]$targetPid, [string]$title) {
     return $hits[0]
 }
 
+# The same, but a hidden window counts too: EXP18 launches the app in its real autostart state
+# (--hidden), where the surface exists but is not visible.
+function HwndByTitleAny([int]$targetPid, [string]$title) {
+    $hits = New-Object System.Collections.ArrayList
+    $cb = [WinExp11+EnumProc] {
+        param($h, $l)
+        $owner = [uint32]0
+        [void][WinExp11]::GetWindowThreadProcessId($h, [ref]$owner)
+        if ($owner -eq $targetPid -and (Title $h) -eq $title) { [void]$hits.Add($h) }
+        return $true
+    }
+    [void][WinExp11]::EnumWindows($cb, [IntPtr]::Zero)
+    if ($hits.Count -eq 0) { return [IntPtr]::Zero }
+    return $hits[0]
+}
+
 # The shell's own answer for the icon belonging to a window: Shell_NotifyIconGetRect. The app is not
 # asked - the shell is. Fails (nonzero) when no icon is registered for that window.
 function NotifyIconRect([IntPtr]$hwnd) {
@@ -155,6 +176,19 @@ function WaitFor($scriptblock, [int]$tries = 20, [int]$milliseconds = 400) {
         if ($null -ne $value) { return $value }
         Start-Sleep -Milliseconds $milliseconds
     }
+    return $null
+}
+
+# One key from the app's own tray report (--tray-report), or $null while the file or key is absent.
+# It is replaced while the app runs, so a read that races the replace is retried, not trusted.
+function ReportValue([string]$path, [string]$key) {
+    if (-not (Test-Path $path)) { return $null }
+    try {
+        foreach ($line in Get-Content $path) {
+            $i = $line.IndexOf('=')
+            if ($i -gt 0 -and $line.Substring(0, $i) -eq $key) { return $line.Substring($i + 1) }
+        }
+    } catch { return $null }
     return $null
 }
 
@@ -507,6 +541,36 @@ Check ($null -ne $lightLum -and $lightLum -gt 0.6) "it is painted light (luminan
 Check ($null -ne $darkLum -and $null -ne $lightLum -and ($lightLum - $darkLum) -gt 0.3) "and the two are plainly different, so the palette is what painted them"
 if ($null -ne $menuHwnd) { [void](Shot $menuHwnd (Join-Path $ShotDir '04-menu-light.png')) }
 $p.WaitForExit(15000) | Out-Null
+
+# ---------------------------------------------------------------------------
+Write-Host "`n== the icon survives a taskbar replacement (EXP18) =="
+
+# The real autostart state: the surface is never shown, so this is the case the user has - the app
+# lives in the tray only. A shell broadcast would go to every top-level window; the verifier posts
+# the same registered id to the app's own window instead, so no other tray app (and not Explorer)
+# is poked by a test run.
+$p = Launch 'hidden, then a taskbar-recreated broadcast' '--no-schedule --hidden' 20
+$surface = WaitFor { $h = HwndByTitleAny $p.Id 'Monitron'; if ($h -ne [IntPtr]::Zero) { $h } else { $null } } 40 250
+Check ($null -ne $surface) "the app's tray window exists while it is hidden"
+if ($null -eq $surface) { $p.Kill(); throw "no tray window appeared" }
+
+Check ($null -ne (WaitFor { NotifyIconRect $surface } 30 400)) "the shell has its icon before the broadcast"
+
+$reportPath = Join-Path $ReportDir 'tray.txt'
+Check ((WaitFor { if ((ReportValue $reportPath 'adds') -eq '1') { '1' } else { $null } } 20 250) -eq '1') `
+    "the app reports one NIM_ADD so far (got '$(ReportValue $reportPath 'adds')')"
+
+$taskbarCreated = [WinExp11]::RegisterWindowMessage('TaskbarCreated')
+Check ($taskbarCreated -ne 0) "TaskbarCreated registers to a real message id (got $taskbarCreated)"
+[void][WinExp11]::PostMessage($surface, [uint32]$taskbarCreated, [IntPtr]::Zero, [IntPtr]::Zero)
+
+Check ((WaitFor { if ((ReportValue $reportPath 'adds') -eq '2') { '2' } else { $null } } 20 250) -eq '2') `
+    "the broadcast made the app add the icon again (adds=$(ReportValue $reportPath 'adds'))"
+Check ($null -ne (NotifyIconRect $surface)) "and the shell still has an icon for that window"
+$ownRect = ReportValue $reportPath 'iconRect'
+Check ($ownRect -ne 'none' -and $ownRect -ne '') "the app can still see its icon's rectangle after the re-add ($ownRect)"
+$p.WaitForExit(25000) | Out-Null
+Check ($p.ExitCode -eq 0) "the run ended cleanly (exit $($p.ExitCode))"
 
 }
 finally {

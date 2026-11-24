@@ -12,7 +12,9 @@
 // Automation can read and drive.
 //
 // The report (--tray-report) is the app's own reading: whether the surface is up, what the Run entry
-// says, and - through Shell_NotifyIconGetRect - where the shell actually put the icon. C# 5 only.
+// says, and - through Shell_NotifyIconGetRect - where the shell actually put the icon. EXP18: the
+// icon is re-added when the shell broadcasts TaskbarCreated, so a taskbar replacement (komorebi-bar)
+// and an Explorer restart find it; `adds` in that report is the count of NIM_ADD calls. C# 5 only.
 
 using System;
 using System.Globalization;
@@ -30,6 +32,7 @@ namespace Monitron.App
     internal sealed class TrayIcon
     {
         private const int NIM_ADD = 0x00000000;
+        private const int NIM_MODIFY = 0x00000001;
         private const int NIM_DELETE = 0x00000002;
 
         private const int NIF_MESSAGE = 0x00000001;
@@ -83,6 +86,10 @@ namespace Monitron.App
         [DllImport("shell32.dll", SetLastError = true)]
         private static extern int Shell_NotifyIconGetRect(ref NOTIFYICONIDENTIFIER identifier, out RECT iconLocation);
 
+        // The shell's own id for "the taskbar was (re)created", registered on the UI thread (EXP18).
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern int RegisterWindowMessage(string name);
+
         // The callback message the shell posts the icon's mouse events with. In the same WM_APP range
         // the rest of the app uses for private messages.
         private static readonly int TrayMessage = WM_APP + 1;
@@ -108,6 +115,8 @@ namespace Monitron.App
         private IntPtr _hwnd;
         private bool _syncing;
         private bool _added;
+        private int _taskbarCreated;
+        private int _adds;
 
         /// <summary>Whether the shell accepted the icon. False means the tray is not usable.</summary>
         public bool Added { get { return _added; } }
@@ -173,6 +182,27 @@ namespace Monitron.App
             _source = HwndSource.FromHwnd(_hwnd);
             if (_source != null) _source.AddHook(WndProc);
 
+            // EXP18: the shell broadcasts this when the taskbar is (re)created - after an Explorer
+            // restart, on a primary-display DPI change, and at the startup of a taskbar replacement
+            // such as komorebi-bar's systray spy. Every icon is assumed dropped, so ours must be
+            // added again. Registered before the first add, so no broadcast can be missed.
+            _taskbarCreated = RegisterWindowMessage("TaskbarCreated");
+
+            var data = NotifyData();
+            _adds++;
+            if (Shell_NotifyIcon(NIM_ADD, ref data))
+            {
+                _added = true;
+            }
+            WriteReport();
+        }
+
+        /// <summary>
+        /// One NOTIFYICONDATA, shared by the launch add and the re-add, so the icon, its id, its
+        /// callback and its tooltip cannot drift between the two paths (EXP18).
+        /// </summary>
+        private NOTIFYICONDATA NotifyData()
+        {
             var data = new NOTIFYICONDATA();
             data.cbSize = Marshal.SizeOf(typeof(NOTIFYICONDATA));
             data.hWnd = _hwnd;
@@ -181,11 +211,20 @@ namespace Monitron.App
             data.uCallbackMessage = (uint)TrayMessage;
             data.hIcon = _trayIcon.Handle;
             data.szTip = "Monitron";
+            return data;
+        }
 
-            if (Shell_NotifyIcon(NIM_ADD, ref data))
-            {
-                _added = true;
-            }
+        /// <summary>
+        /// Puts the icon back after a TaskbarCreated broadcast (EXP18). A taskbar replacement
+        /// broadcasts while the real shell still holds our icon, so NIM_ADD can be refused; the same
+        /// NOTIFYICONDATA is then sent as NIM_MODIFY, which repaints the icon in place.
+        /// </summary>
+        private void ReAdd()
+        {
+            var data = NotifyData();
+            _adds++;
+            // Only now are both outcomes known: whichever call the shell accepted.
+            _added = Shell_NotifyIcon(NIM_ADD, ref data) || Shell_NotifyIcon(NIM_MODIFY, ref data);
             WriteReport();
         }
 
@@ -232,6 +271,15 @@ namespace Monitron.App
 
         private IntPtr WndProc(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
+            // EXP18: the taskbar was (re)created, so the shell no longer holds our icon - put it
+            // back from the live state before anything else looks at the message.
+            if (TrayShell.IsTaskbarCreated(message, _taskbarCreated))
+            {
+                ReAdd();
+                handled = true;
+                return IntPtr.Zero;
+            }
+
             if (message != TrayMessage) return IntPtr.Zero;
 
             int mouse = lParam.ToInt32();
@@ -267,6 +315,7 @@ namespace Monitron.App
             text.Append("startupEnabled=").Append(AutoStart.IsEnabled(_startup, _startupName, _exePath) ? "true" : "false").Append('\n');
             text.Append("startupValue=").Append(value == null ? "" : value).Append('\n');
             text.Append("exe=").Append(_exePath).Append('\n');
+            text.Append("adds=").Append(_adds.ToString(CultureInfo.InvariantCulture)).Append('\n');
             text.Append("iconRect=").Append(placed
                 ? string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", left, top, right, bottom)
                 : "none").Append('\n');

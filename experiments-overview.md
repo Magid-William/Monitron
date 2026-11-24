@@ -22,3 +22,4 @@ only the user declares the final status.
 | [EXP15](experiments/EXP15/README.md) | The surface follows the tray: it opens on the notification area's monitor | success |
 | [EXP16](experiments/EXP16/README.md) | The download: an unsigned release of the exe, proven by fetching it back | success |
 | [EXP17](experiments/EXP17/README.md) | The night light returns to a day value you configure (the Daylight setting) | success |
+| [EXP18](experiments/EXP18/README.md) | The tray icon survives a taskbar replacement | inProg |

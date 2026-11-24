@@ -64,6 +64,17 @@ namespace Monitron.App
             var hidden = new TrayModel(false);
             Check(hidden.VisibilityLabel == "Show", "a tray-only start offers Show");
 
+            Console.WriteLine("the taskbar's broadcast (EXP18)");
+            int taskbarCreated = 0xC123;   // what RegisterWindowMessage("TaskbarCreated") returns
+            Check(TrayShell.IsTaskbarCreated(taskbarCreated, taskbarCreated),
+                "the registered id is the broadcast");
+            Check(!TrayShell.IsTaskbarCreated(0x8001, taskbarCreated),
+                "another message is not the broadcast");
+            Check(!TrayShell.IsTaskbarCreated(0, 0),
+                "a failed registration (0) never matches - not even message 0");
+            Check(!TrayShell.IsTaskbarCreated(0x0010, 0),
+                "and not WM_CLOSE either");
+
             Console.WriteLine("the Run command");
             string exe = @"C:\Program Files\Monitron\Monitron.App.exe";
             Check(StartupEntry.Command(exe) == "\"" + exe + "\" --hidden",

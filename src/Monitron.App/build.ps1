@@ -10,7 +10,8 @@
 # (the display set made live: DisplaySet.cs - the diff, the registry and the --monitors scripted set -
 # and DisplayWatcher.cs, the WM_DISPLAYCHANGE hook), and by EXP17 (the day value configured: the
 # Daylight setting the night light returns screens to - Schedule.cs, ScheduleSettings.cs,
-# SettingsWindow.cs, SettingsPersistence.cs; no new source file).
+# SettingsWindow.cs, SettingsPersistence.cs; no new source file), and by EXP18 (the icon re-added on
+# the shell's TaskbarCreated broadcast - TrayIcon.cs, plus the pure decision in Tray.cs).
 #
 # The UI is written code-only (no XAML), so no markup/BAML step is needed and csc alone
 # can produce the executable; WPF comes from the in-box runtime assemblies.

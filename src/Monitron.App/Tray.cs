@@ -1,9 +1,10 @@
 // EXP11 - the tray's own state, pure: is the surface showing?
 //
 // The menu has exactly three lines - Show/Hide, "Run on Windows startup", Quit - and the first is the app's
-// state, not the OS's: whether the surface window is visible. This holds that, and nothing else;
-// the Run-entry half lives in AutoStart.cs, and the shell half in TrayIcon.cs. No WPF, no P/Invoke,
-// so the headless test (TrayTests.cs, run by tray-test.ps1) can drive it. C# 5 only.
+// state, not the OS's: whether the surface window is visible. This holds that, and nothing else; the
+// Run-entry half lives in AutoStart.cs, and the shell half in TrayIcon.cs - except the one shell
+// decision that is pure enough to drive headlessly (EXP18: is this message TaskbarCreated?). No WPF,
+// no P/Invoke, so the headless test (TrayTests.cs, run by tray-test.ps1) can drive it. C# 5 only.
 
 namespace Monitron.App
 {
@@ -21,5 +22,18 @@ namespace Monitron.App
 
         /// <summary>What pressing it means: the state to move to.</summary>
         public bool NextVisible { get { return !Visible; } }
+    }
+
+    /// <summary>
+    /// The tray's decisions about the shell's messages (EXP18). Pure, so tray-test.ps1 can drive
+    /// them: whether a message is the broadcast that says the taskbar was (re)created and every tray
+    /// icon was dropped. The id is 0 when RegisterWindowMessage failed, and 0 must never match.
+    /// </summary>
+    internal static class TrayShell
+    {
+        public static bool IsTaskbarCreated(int message, int registered)
+        {
+            return registered != 0 && message == registered;
+        }
     }
 }
